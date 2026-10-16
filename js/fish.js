@@ -12,16 +12,22 @@ export const RARITY = {
 
 // height: 体高/体长；thick: 体宽/体高；diff: 难度 1-5；score: 基础分
 export const SPECIES = [
-  { id: 'crucian', name: '鲫鱼', rarity: 'common', w: [0.15, 0.9], score: 10, diff: 1.0, height: 0.42, thick: 0.45, top: 0x3e4030, belly: 0xd9d3b4, fin: 0x77694c, pattern: 'plain', metal: 0.45, tail: 'fork', desc: '湖里最常见的小鱼，肉质细嫩，新手的好朋友。' },
-  { id: 'tilapia', name: '罗非鱼', rarity: 'common', w: [0.3, 1.6], score: 14, diff: 1.3, height: 0.44, thick: 0.42, top: 0x39433f, belly: 0xc3c7bb, fin: 0x55566a, pattern: 'stripes', metal: 0.3, tail: 'round', desc: '适应力极强，身上有隐约的竖纹。' },
-  { id: 'carp', name: '鲤鱼', rarity: 'common', w: [0.8, 6], score: 20, diff: 1.8, height: 0.32, thick: 0.55, top: 0x4f4220, belly: 0xe3cc94, fin: 0x9a5530, pattern: 'plain', metal: 0.5, tail: 'fork', desc: '鳞片金黄，尾鳍带红，力气不小。' },
-  { id: 'perch', name: '鲈鱼', rarity: 'rare', w: [0.5, 3.5], score: 40, diff: 2.4, height: 0.29, thick: 0.5, top: 0x34443a, belly: 0xebebe3, fin: 0x4a5048, pattern: 'spots', metal: 0.55, tail: 'fork', desc: '背部散布黑点的掠食者，咬钩凶猛。' },
-  { id: 'mandarin', name: '鳜鱼', rarity: 'rare', w: [0.4, 2.5], score: 50, diff: 2.6, height: 0.36, thick: 0.45, top: 0x5c5222, belly: 0xeadfa6, fin: 0x6a5a30, pattern: 'blotch', metal: 0.25, tail: 'round', desc: '“桃花流水鳜鱼肥”，斑纹如豹。' },
-  { id: 'trout', name: '虹鳟', rarity: 'rare', w: [0.6, 4], score: 55, diff: 2.8, height: 0.25, thick: 0.6, top: 0x3a4e46, belly: 0xf2f2ec, fin: 0x7a8070, pattern: 'rainbow', metal: 0.5, tail: 'fork', desc: '体侧一道玫瑰色彩虹带，冷水中的精灵。' },
-  { id: 'goldcarp', name: '黄金鲤', rarity: 'epic', w: [2, 10], score: 120, diff: 3.4, height: 0.33, thick: 0.55, top: 0xc98a0c, belly: 0xffe58a, fin: 0xff9a2a, pattern: 'plain', metal: 0.85, tail: 'fork', desc: '通体金光闪闪，据说能带来好运。' },
-  { id: 'arowana', name: '金龙鱼', rarity: 'epic', w: [2, 7], score: 150, diff: 3.8, height: 0.23, thick: 0.45, top: 0xa8821c, belly: 0xffe9a8, fin: 0xc27022, pattern: 'plain', metal: 0.9, tail: 'round', desc: '鳞大如币，游姿如龙。' },
-  { id: 'koi', name: '红白锦鲤王', rarity: 'legend', w: [5, 15], score: 400, diff: 4.3, height: 0.32, thick: 0.6, top: 0xf6f2ea, belly: 0xffffff, fin: 0xf3eee6, pattern: 'koi', metal: 0.2, tail: 'fork', desc: '传说中的湖之守护者，红白分明，极为罕见。' },
-  { id: 'sturgeon', name: '千年鳇鱼', rarity: 'legend', w: [40, 160], score: 600, diff: 5.0, height: 0.15, thick: 0.95, top: 0x383c3e, belly: 0xcbc6b8, fin: 0x3c4046, pattern: 'scutes', metal: 0.15, tail: 'shark', desc: '远古巨兽，体覆骨板，需要极大的耐心与技巧。' },
+  // method: float 台钓 / lure 露亚 / both 两者皆可；price: 平均体重时的基础售价
+  { id: 'crucian', name: '鲫鱼', rarity: 'common', method: 'float', w: [0.15, 0.9], price: 8, diff: 1.0, height: 0.42, thick: 0.45, top: 0x3e4030, belly: 0xd9d3b4, fin: 0x77694c, pattern: 'plain', metal: 0.45, tail: 'fork', desc: '湖里最常见的小鱼，肉质细嫩，新手的好朋友。' },
+  { id: 'tilapia', name: '罗非鱼', rarity: 'common', method: 'float', w: [0.3, 1.6], price: 10, diff: 1.3, height: 0.44, thick: 0.42, top: 0x39433f, belly: 0xc3c7bb, fin: 0x55566a, pattern: 'stripes', metal: 0.3, tail: 'round', desc: '适应力极强，身上有隐约的竖纹。' },
+  { id: 'carp', name: '鲤鱼', rarity: 'common', method: 'float', w: [0.8, 6], price: 16, diff: 1.8, height: 0.32, thick: 0.55, top: 0x4f4220, belly: 0xe3cc94, fin: 0x9a5530, pattern: 'plain', metal: 0.5, tail: 'fork', desc: '鳞片金黄，尾鳍带红，力气不小。玉米是它的最爱。' },
+  { id: 'grass', name: '草鱼', rarity: 'common', method: 'float', w: [1, 8], price: 18, diff: 2.0, height: 0.24, thick: 0.62, top: 0x55562e, belly: 0xd8d0a0, fin: 0x6a6440, pattern: 'plain', metal: 0.4, tail: 'fork', desc: '体型修长的大块头，冲劲十足。' },
+  { id: 'horsemouth', name: '马口鱼', rarity: 'common', method: 'lure', w: [0.05, 0.4], price: 12, diff: 1.2, height: 0.24, thick: 0.45, top: 0x3a5a6a, belly: 0xf0e6e0, fin: 0xd06a50, pattern: 'bars', metal: 0.5, tail: 'fork', desc: '溪流里的小霸王，体侧蓝色横斑，追饵积极。' },
+  { id: 'perch', name: '鲈鱼', rarity: 'rare', method: 'both', w: [0.5, 3.5], price: 45, diff: 2.4, height: 0.29, thick: 0.5, top: 0x34443a, belly: 0xebebe3, fin: 0x4a5048, pattern: 'spots', metal: 0.55, tail: 'fork', predator: true, desc: '背部散布黑点的掠食者，咬钩凶猛。' },
+  { id: 'mandarin', name: '鳜鱼', rarity: 'rare', method: 'both', w: [0.4, 2.5], price: 55, diff: 2.6, height: 0.36, thick: 0.45, top: 0x5c5222, belly: 0xeadfa6, fin: 0x6a5a30, pattern: 'blotch', metal: 0.25, tail: 'round', predator: true, desc: '“桃花流水鳜鱼肥”，斑纹如豹，偏爱贴底的软虫。' },
+  { id: 'trout', name: '虹鳟', rarity: 'rare', method: 'both', w: [0.6, 4], price: 50, diff: 2.8, height: 0.25, thick: 0.6, top: 0x3a4e46, belly: 0xf2f2ec, fin: 0x7a8070, pattern: 'rainbow', metal: 0.5, tail: 'fork', predator: true, desc: '体侧一道玫瑰色彩虹带，冷水中的精灵。' },
+  { id: 'culter', name: '翘嘴', rarity: 'rare', method: 'lure', w: [0.5, 5], price: 48, diff: 2.9, height: 0.2, thick: 0.4, top: 0x5a6670, belly: 0xf4f4f0, fin: 0x8a8f96, pattern: 'plain', metal: 0.85, tail: 'fork', predator: true, desc: '嘴巴上翘的银色猎手，最爱追击快速游动的米诺。' },
+  { id: 'goldcarp', name: '黄金鲤', rarity: 'epic', method: 'float', w: [2, 10], price: 160, diff: 3.4, height: 0.33, thick: 0.55, top: 0xc98a0c, belly: 0xffe58a, fin: 0xff9a2a, pattern: 'plain', metal: 0.85, tail: 'fork', desc: '通体金光闪闪，据说能带来好运。' },
+  { id: 'arowana', name: '金龙鱼', rarity: 'epic', method: 'both', w: [2, 7], price: 190, diff: 3.8, height: 0.23, thick: 0.45, top: 0xa8821c, belly: 0xffe9a8, fin: 0xc27022, pattern: 'plain', metal: 0.9, tail: 'round', predator: true, desc: '鳞大如币，游姿如龙。' },
+  { id: 'snakehead', name: '黑鱼', rarity: 'epic', method: 'lure', w: [1, 8], price: 170, diff: 3.9, height: 0.19, thick: 0.8, top: 0x2e3324, belly: 0xb8b49a, fin: 0x30352a, pattern: 'snake', metal: 0.15, tail: 'round', predator: true, desc: '水草丛中的伏击者，常在水面炸水攻击波爬和雷蛙。' },
+  { id: 'koi', name: '红白锦鲤王', rarity: 'legend', method: 'float', w: [5, 15], price: 650, diff: 4.3, height: 0.32, thick: 0.6, top: 0xf6f2ea, belly: 0xffffff, fin: 0xf3eee6, pattern: 'koi', metal: 0.2, tail: 'fork', desc: '传说中的湖之守护者，红白分明，极为罕见。' },
+  { id: 'sturgeon', name: '千年鳇鱼', rarity: 'legend', method: 'float', w: [40, 160], price: 900, diff: 5.0, height: 0.15, thick: 0.95, top: 0x383c3e, belly: 0xcbc6b8, fin: 0x3c4046, pattern: 'scutes', metal: 0.15, tail: 'shark', desc: '远古巨兽，体覆骨板，需要极大的耐心与技巧。' },
+  { id: 'gancyu', name: '鳡鱼', rarity: 'legend', method: 'lure', w: [10, 40], price: 750, diff: 4.8, height: 0.16, thick: 0.7, top: 0x6a6440, belly: 0xf2e6b0, fin: 0xb08a3a, pattern: 'plain', metal: 0.6, tail: 'fork', predator: true, desc: '淡水鱼中的“水中老虎”，速度极快，冲刺凶猛。' },
 ];
 export const speciesById = Object.fromEntries(SPECIES.map(s => [s.id, s]));
 
@@ -50,6 +56,14 @@ function bodyColor(sp, u, yn, v, out, seed) {
       const band = Math.exp(-Math.pow((yn - 0.02) / 0.2, 2)) * smooth(0.08, 0.25, u) * 0.75;
       out.lerp(new THREE.Color(0xd8607a), band);
       if (yn > 0.0 && hash(Math.floor(u * 70), Math.floor(v * 13)) > 0.82) out.multiplyScalar(0.35);
+      break; }
+    case 'bars': {
+      if (Math.sin(u * Math.PI * 2 * 9) > 0.2 && u > 0.2 && u < 0.85 && yn > -0.25) out.lerp(new THREE.Color(0x2a5a9a), 0.55);
+      if (yn < -0.1 && yn > -0.6) out.lerp(new THREE.Color(0xe08a7a), 0.25);
+      break; }
+    case 'snake': {
+      const n = vnoise(u * 12 + seed, v * 3 + 1);
+      if (yn > -0.55 && n > 0.5) out.multiplyScalar(0.35);
       break; }
     case 'koi': {
       const n = vnoise(u * 5.5 + seed * 3, v * 1.8 + seed);
