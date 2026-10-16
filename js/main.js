@@ -1,20 +1,30 @@
-// 静湖垂钓 3D —— 主程序：渲染、输入、钓鱼状态机、HUD
+// 静湖垂钓 3D v2 —— 渲染、输入、台钓/露亚双玩法状态机
 import * as THREE from 'three';
 import { createWorld, DECK_Y, DOCK_END_Z } from './world.js';
 import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails } from './fish.js';
+import { RODS, LURES, BAITS } from './data.js';
+import { loadSave } from './save.js';
+import { createSystems } from './systems.js';
+import { createUI } from './ui.js';
 import { clamp, lerp, rand } from './util.js';
 
 // ---------------- 画质 ----------------
 const isMobile = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
-let quality = localStorage.getItem('fishing3d_quality') || (isMobile ? 'low' : 'high');
+const quality = localStorage.getItem('fishing3d_quality') || (isMobile ? 'low' : 'high');
 const Q = quality === 'high'
   ? { pr: Math.min(devicePixelRatio, 2), shadow: 2048, waterRes: 1024, terrainSeg: 256, trees: 1400, reeds: 2200, aa: true }
   : { pr: Math.min(devicePixelRatio, 1.25), shadow: 1024, waterRes: 256, terrainSeg: 128, trees: 450, reeds: 700, aa: false };
 
-// ---------------- 存档 ----------------
-const SAVE_KEY = 'fishing3d_save_v1';
-const save = Object.assign({ coins: 0, catches: 0, collection: {} }, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}'));
-const persist = () => localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+// ---------------- 存档 & 系统 ----------------
+const { save, migrated } = loadSave();
+let UI;
+const S = createSystems(save, {
+  levelUp: l => { UI && UI.toast(`升级！钓鱼等级 Lv.${l}，商店解锁新装备`, 2600); },
+  questDone: t => { UI && setTimeout(() => UI.toast(`任务完成：${t}，去任务面板领取奖励`, 2600), 2700); },
+  toast: m => UI && UI.toast(m),
+  equipChanged: () => { applyGear(); UI && UI.refreshHud(); },
+});
+S.ensureDaily();
 
 // ---------------- 渲染器 ----------------
 const canvas = document.getElementById('game');
@@ -33,52 +43,53 @@ camera.rotation.order = 'YXZ';
 const CAM_POS = new THREE.Vector3(0, DECK_Y + 1.65, DOCK_END_Z + 3.0);
 camera.position.copy(CAM_POS);
 scene.add(camera);
-
 const world = createWorld(scene, renderer, Q);
 
-// ---------------- 鱼竿（分段可弯曲） ----------------
+// ---------------- 鱼竿（可换外观、分段弯曲） ----------------
 const rodRig = new THREE.Group();
 rodRig.position.set(0.42, -0.5, -0.5);
 camera.add(rodRig);
 const rodBase = new THREE.Group();
 rodRig.add(rodBase);
-const ROD_SEG = 14, ROD_LEN = 2.7;
-const carbon = new THREE.MeshPhysicalMaterial({ color: 0x15161a, roughness: 0.28, metalness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1 });
-const segs = [];
-{
-  const cork = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.019, 0.5, 16), new THREE.MeshStandardMaterial({ color: 0xb48f62, roughness: 0.95 }));
-  cork.position.y = -0.2; rodBase.add(cork);
-  const butt = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.05, 16), new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5 }));
-  butt.position.y = -0.47; rodBase.add(butt);
-  // 纺车轮
+const ROD_SEG = 14;
+let segs = [], rodTip = new THREE.Object3D(), reelHandle = null, rodBuiltKey = '';
+function buildRod(def) {
+  const key = def.name; if (key === rodBuiltKey) return; rodBuiltKey = key;
+  rodBase.traverse(o => { if (o.isMesh) { o.geometry.dispose(); } });
+  rodBase.clear(); segs = [];
+  const isLure = def.type === 'lure';
+  const blank = new THREE.MeshPhysicalMaterial({ color: def.color, roughness: def.type === 'float' && def.metal === 0 ? 0.55 : 0.28, metalness: def.metal, clearcoat: 1, clearcoatRoughness: 0.12 });
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.019, isLure ? 0.32 : 0.5, 16),
+    new THREE.MeshStandardMaterial({ color: isLure ? 0x1a1a1a : 0xb48f62, roughness: isLure ? 0.7 : 0.95 }));
+  grip.position.y = isLure ? -0.1 : -0.2; rodBase.add(grip);
   const metal = new THREE.MeshPhysicalMaterial({ color: 0x9aa0a8, metalness: 0.9, roughness: 0.25, clearcoat: 0.5 });
-  const reel = new THREE.Group();
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, 0.08, 8), metal); stem.rotation.x = Math.PI / 2; stem.position.z = -0.04; reel.add(stem);
-  const spool = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.05, 24), metal); spool.position.set(0, 0.02, -0.1); reel.add(spool);
-  const lineOnSpool = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.035, 24), new THREE.MeshStandardMaterial({ color: 0xe8e8e0, roughness: 0.6 })); lineOnSpool.position.set(0, 0.03, -0.1); reel.add(lineOnSpool);
-  const housing = new THREE.Mesh(new THREE.SphereGeometry(0.04, 20, 14), new THREE.MeshPhysicalMaterial({ color: 0x1f2a3a, metalness: 0.6, roughness: 0.3, clearcoat: 1 }));
-  housing.scale.set(0.9, 0.9, 1.1); housing.position.set(0, -0.03, -0.1); reel.add(housing);
-  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.09, 6), metal); handle.rotation.z = Math.PI / 2; handle.position.set(0.05, -0.03, -0.1); reel.add(handle);
-  const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.025, 10), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.6 })); knob.position.set(0.095, -0.03, -0.085); knob.rotation.x = Math.PI / 2; reel.add(knob);
-  reel.position.y = 0.12; rodBase.add(reel);
-  rodBase.userData.reelHandle = handle;
-
+  reelHandle = null;
+  if (isLure) { // 纺车轮（台钓竿为手竿，无渔轮）
+    const reel = new THREE.Group();
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, 0.08, 8), metal); stem.rotation.x = Math.PI / 2; stem.position.z = -0.04; reel.add(stem);
+    const spool = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.05, 24), metal); spool.position.set(0, 0.02, -0.1); reel.add(spool);
+    const housing = new THREE.Mesh(new THREE.SphereGeometry(0.04, 20, 14), new THREE.MeshPhysicalMaterial({ color: def.color, metalness: 0.6, roughness: 0.3, clearcoat: 1 }));
+    housing.scale.set(0.9, 0.9, 1.1); housing.position.set(0, -0.03, -0.1); reel.add(housing);
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.09, 6), metal); handle.rotation.z = Math.PI / 2; handle.position.set(0.05, -0.03, -0.1); reel.add(handle);
+    reel.position.y = 0.05; rodBase.add(reel); reelHandle = reel;
+  }
   let parent = rodBase;
-  const segLen = ROD_LEN / ROD_SEG;
+  const segLen = def.len / ROD_SEG;
   for (let i = 0; i < ROD_SEG; i++) {
     const r0 = lerp(0.016, 0.0035, i / ROD_SEG), r1 = lerp(0.016, 0.0035, (i + 1) / ROD_SEG);
     const g = new THREE.Group(); g.position.y = i === 0 ? 0.05 : segLen;
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, segLen, 10), carbon); m.position.y = segLen / 2; g.add(m);
-    if (i % 3 === 1) { // 导环
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.012 + r0, 0.0025, 6, 14), new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.9, roughness: 0.2 }));
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, segLen, 10), blank); m.position.y = segLen / 2; g.add(m);
+    if (def.type === 'float' && def.metal === 0 && i % 2 === 0) { // 竹节
+      const node = new THREE.Mesh(new THREE.TorusGeometry(r0 * 1.02, r0 * 0.18, 6, 14), blank); node.rotation.x = Math.PI / 2; g.add(node);
+    }
+    if (isLure && i % 3 === 1) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.012 + r0, 0.0025, 6, 14), metal);
       ring.rotation.x = Math.PI / 2; ring.position.set(0, segLen * 0.5, -0.02 - r0); g.add(ring);
     }
     parent.add(g); segs.push(g); parent = g;
   }
-  const tip = new THREE.Object3D(); tip.position.y = segLen; parent.add(tip);
-  rodBase.userData.tip = tip;
+  rodTip = new THREE.Object3D(); rodTip.position.y = segLen; parent.add(rodTip);
 }
-const rodTip = rodBase.userData.tip;
 const ROD_REST = -0.95;
 const rod = { pitch: ROD_REST, yaw: 0.02, bend: 0.05 };
 function updateRod() {
@@ -91,37 +102,60 @@ const bobber = new THREE.Group();
 {
   const pts = [];
   for (let i = 0; i <= 16; i++) { const t = i / 16; pts.push(new THREE.Vector2(Math.sin(t * Math.PI) * 0.045 * (t < 0.5 ? 1 : 0.85), -0.06 + t * 0.12)); }
-  const g = new THREE.LatheGeometry(pts, 24);
   const red = new THREE.MeshPhysicalMaterial({ color: 0xff2a10, roughness: 0.25, clearcoat: 1, emissive: 0x330000 });
   const white = new THREE.MeshPhysicalMaterial({ color: 0xf8f8f8, roughness: 0.25, clearcoat: 1 });
-  const top = new THREE.Mesh(g, red);
-  const bottom = new THREE.Mesh(g, white); bottom.scale.set(1.001, 1, 1.001);
-  // 用裁剪平面分色太复杂，改为上下两半
-  top.geometry = new THREE.LatheGeometry(pts.slice(8), 24);
-  bottom.geometry = new THREE.LatheGeometry(pts.slice(0, 9), 24);
+  const top = new THREE.Mesh(new THREE.LatheGeometry(pts.slice(8), 24), red);
+  const bottom = new THREE.Mesh(new THREE.LatheGeometry(pts.slice(0, 9), 24), white);
   const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, 0.14, 8), new THREE.MeshPhysicalMaterial({ color: 0xffd400, emissive: 0x554400, roughness: 0.3 }));
   antenna.position.y = 0.13;
   const cap = new THREE.Mesh(new THREE.SphereGeometry(0.011, 10, 8), red); cap.position.y = 0.2;
   bobber.add(top, bottom, antenna, cap);
   bobber.traverse(o => { if (o.isMesh) o.castShadow = true; });
 }
-scene.add(bobber);
+// ---------------- 路亚饵模型 ----------------
+const lureModels = {};
+{
+  const mk = (geo, color, metal = 0.2, rough = 0.3) => new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ color, metalness: metal, roughness: rough, clearcoat: 1 }));
+  const spoon = new THREE.Group(); { const m = mk(new THREE.SphereGeometry(0.045, 16, 10), 0xe6e6e6, 1, 0.15); m.scale.set(1, 0.18, 0.55); spoon.add(m); const h = mk(new THREE.TorusGeometry(0.01, 0.002, 6, 12), 0xaaaaaa, 1); h.position.x = -0.05; spoon.add(h); }
+  const minnow = new THREE.Group(); { const m = mk(new THREE.SphereGeometry(0.05, 16, 10), 0x3a8ac0, 0.5, 0.2); m.scale.set(1, 0.32, 0.26); minnow.add(m); const b = mk(new THREE.SphereGeometry(0.05, 16, 10), 0xf0f0f0, 0.6); b.scale.set(0.95, 0.2, 0.24); b.position.y = -0.006; minnow.add(b); const lip = mk(new THREE.BoxGeometry(0.02, 0.002, 0.016), 0xdddddd, 0, 0.05); lip.position.set(0.055, -0.008, 0); lip.rotation.z = -0.6; minnow.add(lip); }
+  const worm = new THREE.Group(); { const m = mk(new THREE.TorusGeometry(0.03, 0.008, 8, 20, Math.PI * 1.2), 0x6a4a8a, 0, 0.5); worm.add(m); }
+  const popper = new THREE.Group(); { const m = mk(new THREE.CylinderGeometry(0.018, 0.011, 0.07, 14), 0xe0d040, 0.2); m.rotation.z = Math.PI / 2; popper.add(m); const f = mk(new THREE.CircleGeometry(0.016, 14), 0xc03020); f.rotation.y = Math.PI / 2; f.position.x = 0.036; popper.add(f); }
+  const frog = new THREE.Group(); { const m = mk(new THREE.SphereGeometry(0.03, 14, 10), 0x3a8a2a, 0, 0.5); m.scale.set(1.2, 0.6, 1); frog.add(m); for (const s of [1, -1]) { const l = mk(new THREE.CylinderGeometry(0.004, 0.004, 0.05, 6), 0x2a6a1a); l.rotation.set(Math.PI / 2, 0, 0.6 * s); l.position.set(-0.035, 0, 0.02 * s); frog.add(l); } }
+  Object.assign(lureModels, { spoon, minnow, worm, popper, frog });
+}
+const tackle = new THREE.Group(); // 线末端：浮漂或路亚饵
+scene.add(tackle);
+tackle.add(bobber);
+Object.values(lureModels).forEach(m => { m.visible = false; tackle.add(m); });
+
+// 鱼影（露亚追饵）
+const followShadow = new THREE.Mesh(new THREE.CircleGeometry(0.5, 24), new THREE.MeshBasicMaterial({ color: 0x050a08, transparent: true, opacity: 0, depthWrite: false }));
+followShadow.rotation.x = -Math.PI / 2; followShadow.scale.set(1, 0.3, 1); followShadow.renderOrder = 2; followShadow.visible = false;
+scene.add(followShadow);
+
+function applyGear() {
+  buildRod(S.rod());
+  const lureMode = save.equip.mode === 'lure';
+  bobber.visible = !lureMode;
+  const shape = S.lure().shape;
+  for (const [k, m] of Object.entries(lureModels)) m.visible = lureMode && k === shape;
+  updateRod();
+}
 
 // ---------------- 鱼线 ----------------
 const LINE_PTS = 40;
 const lineGeo = new THREE.BufferGeometry();
 lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(LINE_PTS * 3), 3));
 const fishLine = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xf2f2ea, transparent: true, opacity: 0.75 }));
-fishLine.frustumCulled = false;
-scene.add(fishLine);
+fishLine.frustumCulled = false; scene.add(fishLine);
 const _tip = new THREE.Vector3();
 function updateLine(sag) {
   rodTip.getWorldPosition(_tip);
-  const p = lineGeo.attributes.position, b = bobber.position;
-  const top = new THREE.Vector3(b.x, b.y + 0.2 * bobber.scale.y, b.z);
+  const p = lineGeo.attributes.position, b = tackle.position;
+  const topY = b.y + (save.equip.mode === 'lure' ? 0.02 : 0.2) * tackle.scale.y;
   for (let i = 0; i < LINE_PTS; i++) {
     const t = i / (LINE_PTS - 1);
-    p.setXYZ(i, lerp(_tip.x, top.x, t), lerp(_tip.y, top.y, t) - Math.sin(t * Math.PI) * sag, lerp(_tip.z, top.z, t));
+    p.setXYZ(i, lerp(_tip.x, b.x, t), lerp(_tip.y, topY, t) - Math.sin(t * Math.PI) * sag, lerp(_tip.z, b.z, t));
   }
   p.needsUpdate = true;
 }
@@ -130,16 +164,17 @@ function updateLine(sag) {
 const ripples = [];
 {
   const rg = new THREE.RingGeometry(0.85, 1, 48); rg.rotateX(-Math.PI / 2);
-  for (let i = 0; i < 10; i++) {
-    const m = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, fog: true }));
+  for (let i = 0; i < 16; i++) {
+    const m = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
     m.visible = false; scene.add(m); ripples.push({ m, life: 0, max: 1, size: 1 });
   }
 }
+let rippleIdx = 0;
 function spawnRipple(pos, size = 1, life = 1.6) {
-  const r = ripples.find(r => r.life <= 0) || ripples[0];
+  const r = ripples.find(r => r.life <= 0) || ripples[(rippleIdx = (rippleIdx + 1) % ripples.length)];
   r.m.position.set(pos.x, 0.03, pos.z); r.life = r.max = life; r.size = size; r.m.visible = true;
 }
-const SPLASH_N = 160;
+const SPLASH_N = 200;
 const splashGeo = new THREE.BufferGeometry();
 splashGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(SPLASH_N * 3), 3));
 const splashVel = new Float32Array(SPLASH_N * 3), splashLife = new Float32Array(SPLASH_N);
@@ -174,140 +209,163 @@ function updateFx(dt) {
 
 // ---------------- UI ----------------
 const $ = id => document.getElementById(id);
-const ui = {
-  coins: $('coins'), catches: $('catches'), hint: $('hint'), power: $('powerWrap'), powerFill: $('powerFill'),
-  reel: $('reelWrap'), tension: $('tensionFill'), tensionMark: $('tensionMark'), progress: $('progressFill'), reelMsg: $('reelMsg'),
-  bite: $('bitePrompt'), toast: $('toast'), card: $('card'), action: $('actionBtn'), dex: $('dex'), mark: $('bobMark'), dexGrid: $('dexGrid'), dexCount: $('dexCount'),
-};
 let thumbs = {};
-function refreshHud() { ui.coins.textContent = save.coins; ui.catches.textContent = save.catches; }
-let toastTimer = 0;
-function toast(msg, ms = 1800) { ui.toast.textContent = msg; ui.toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => ui.toast.classList.remove('show'), ms); }
-function renderDex() {
-  const caught = SPECIES.filter(s => save.collection[s.id]).length;
-  ui.dexCount.textContent = `已收集 ${caught} / ${SPECIES.length}`;
-  ui.dexGrid.innerHTML = SPECIES.map(s => {
-    const c = save.collection[s.id], R = RARITY[s.rarity];
-    return `<div class="dex-item ${c ? '' : 'locked'}" style="--rc:${R.color}">
-      <img src="${thumbs[s.id] || ''}" alt="">
-      <div class="dex-name">${c ? s.name : '？？？'}</div>
-      <div class="dex-rar" style="color:${R.color}">${R.name}</div>
-      <div class="dex-info">${c ? `捕获 ${c.count} 次 · 最重 ${c.maxW.toFixed(2)}kg` : '尚未钓到'}</div>
-    </div>`;
-  }).join('');
-}
+UI = createUI(save, S, { thumbs: () => thumbs, canOpenPanel: () => G.state === 'idle', coinFx: () => { $('coinChip').classList.remove('pop'); void $('coinChip').offsetWidth; $('coinChip').classList.add('pop'); } });
+const ui = {
+  hint: $('hint'), power: $('powerWrap'), powerFill: $('powerFill'),
+  reel: $('reelWrap'), tension: $('tensionFill'), progress: $('progressFill'), reelMsg: $('reelMsg'),
+  lure: $('lureWrap'), speedFill: $('speedFill'), speedZone: $('speedZone'), attrFill: $('attrFill'), lureMsg: $('lureMsg'),
+  bite: $('bitePrompt'), card: $('card'), action: $('actionBtn'), mark: $('bobMark'), strikeFx: $('strikeFx'),
+};
+function flashText(txt, color = '#ffe14a') { const el = ui.strikeFx; el.textContent = txt; el.style.color = color; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); }
 
 // ---------------- 状态机 ----------------
 const G = {
-  state: 'idle', t: 0, power: 0, powerDir: 1, aim: 0, holding: false,
-  castFrom: new THREE.Vector3(), castTo: new THREE.Vector3(), castT: 0, castDur: 1,
-  waitT: 0, biteT: 0, nibbleT: 0, dip: 0,
-  fish: null, weight: 0, tension: 0.4, progress: 0, slackT: 0, overT: 0, surge: 0, nextSurge: 2, retrieveFrom: new THREE.Vector3(), retrieveT: 0,
-  shake: 0, catchModel: null, pitch: -0.1,
+  state: 'idle', t: 0, power: 0, powerDir: 1, aim: 0, holding: false, pressT: 0,
+  castFrom: new THREE.Vector3(), castTo: new THREE.Vector3(), castDur: 1, castPower: 0.5, mode: 'float',
+  waitT: 0, nibbleT: 0, dip: 0, nibbling: 0, biteWindow: 1, perfectWin: 0.3,
+  fish: null, perfect: false,
+  // 露亚
+  lp: new THREE.Vector3(), speed: 0, attract: 0, twitches: [], follower: null, wakeT: 0, strikeChanceT: 0,
+  // 搏鱼
+  tension: 0.4, progress: 0, slackT: 0, overT: 0, evt: null, evtT: 2, jumpModel: null, jumpT: 0,
+  retrieveFrom: new THREE.Vector3(), retrieveT: 0, shake: 0, catchModel: null, catchInfo: null, pitch: -0.1,
 };
-const HINTS = {
-  idle: isMobile ? '按住屏幕蓄力，左右拖动瞄准，松开抛竿' : '按住鼠标 / 空格蓄力，拖动或 A/D 瞄准，松开抛竿',
-  charging: '松开抛竿！',
-  casting: '',
-  waiting: '耐心等待… 浮漂下沉时再收竿',
-  bite: '',
-  reeling: isMobile ? '按住收线，张力过高就松手' : '按住鼠标 / 空格收线，张力过高就松开',
-  caught: '', retrieve: '',
+const HINT = {
+  idle: () => save.equip.mode === 'lure'
+    ? (isMobile ? '露亚：按住蓄力，拖动瞄准，松开抛投' : '露亚：按住鼠标/空格蓄力，拖动或 A/D 瞄准，松开抛投')
+    : (isMobile ? '台钓：按住蓄力，拖动瞄准，松开抛竿' : '台钓：按住鼠标/空格蓄力，拖动或 A/D 瞄准，松开抛竿'),
+  charging: () => '松开抛竿！', casting: () => '',
+  waiting: () => G.nibbling > 0 ? '有鱼在试口… 别急，等浮漂整个沉下去（黑漂）！' : '耐心等待… 小幅点动是试口，整个下沉再提竿',
+  bite: () => '', strike: () => '',
+  lure: () => isMobile ? '按住收线 · 松开停顿 · 轻点抽竿，让速度保持在绿色区' : '按住收线 · 松开停顿 · 轻点抽竿（空格同理），速度保持在绿色区',
+  reeling: () => '按住收线，张力过高就松手；甩头、冲刺时注意卸力',
+  caught: () => '', returning: () => '',
 };
-const ACTION_LABEL = { idle: '按住抛竿', charging: '松开抛竿', casting: '…', waiting: '收竿', bite: '收竿！', reeling: '按住收线', caught: '…', retrieve: '…' };
+const ACTION = { idle: '按住抛竿', charging: '松开抛竿', casting: '…', waiting: '提竿', bite: '提竿！', strike: '刺鱼！', lure: '按住收线', reeling: '按住收线', caught: '…', returning: '…' };
 function setState(s) {
   G.state = s; G.t = 0;
-  ui.hint.textContent = HINTS[s] || '';
+  ui.hint.textContent = HINT[s] ? HINT[s]() : '';
   ui.power.classList.toggle('show', s === 'charging');
   ui.reel.classList.toggle('show', s === 'reeling');
-  ui.bite.classList.toggle('show', s === 'bite');
-  ui.action.textContent = ACTION_LABEL[s];
-  ui.action.classList.toggle('urgent', s === 'bite');
+  ui.lure.classList.toggle('show', s === 'lure');
+  if (s !== 'bite' && s !== 'strike') ui.bite.classList.remove('show');
+  ui.action.textContent = ACTION[s];
+  ui.action.classList.toggle('urgent', s === 'bite' || s === 'strike');
   ui.action.classList.toggle('hidden', s === 'caught');
+  document.body.classList.toggle('busy', s !== 'idle');
 }
-
-function forward() { return new THREE.Vector3(-Math.sin(G.aim), 0, -Math.cos(G.aim)); }
-
-function pickFish(power) {
-  const w = { common: RARITY.common.weight * (1.15 - power * 0.45), rare: RARITY.rare.weight * (1 + power * 0.3), epic: RARITY.epic.weight * (1 + power * 0.9), legend: RARITY.legend.weight * (1 + power * 1.6) };
-  let r = Math.random() * Object.values(w).reduce((a, b) => a + b, 0), rar = 'common';
-  for (const k in w) { r -= w[k]; if (r <= 0) { rar = k; break; } }
-  const pool = SPECIES.filter(s => s.rarity === rar);
-  const sp = pool[(Math.random() * pool.length) | 0];
-  const wf = Math.pow(Math.random(), 2.2);
-  return { sp, weight: sp.w[0] + (sp.w[1] - sp.w[0]) * wf, wf };
-}
+const forward = () => new THREE.Vector3(-Math.sin(G.aim), 0, -Math.cos(G.aim));
+const hangPos = (out) => { rodTip.getWorldPosition(_tip); return out.set(_tip.x, _tip.y - (save.equip.mode === 'lure' ? 0.25 : 0.75), _tip.z); };
 
 function startCast() {
+  G.mode = save.equip.mode;
+  const rodDef = S.rod();
   const p = G.power;
-  const dist = 8 + p * 47;
+  const dist = (8 + p * 47) * rodDef.cast * (G.mode === 'lure' ? 1.05 : 1);
   rodTip.getWorldPosition(G.castFrom);
   const f = forward();
   G.castTo.set(CAM_POS.x + f.x * dist + rand(-1, 1), 0, CAM_POS.z + f.z * dist + rand(-1, 1));
   G.castDur = 0.7 + dist * 0.018; G.castPower = p;
+  if (G.mode === 'float') G.baitUsed = S.consumeBait() || 'none';
+  UI.refreshHud();
   setState('casting');
 }
-function startRetrieve(msg) {
-  if (msg) toast(msg);
-  G.retrieveFrom.copy(bobber.position); G.retrieveT = 0;
-  setState('retrieve');
+function startReturn(msg) {
+  if (msg) UI.toast(msg);
+  G.fish = null; G.follower = null; followShadow.visible = false;
+  if (G.jumpModel) { scene.remove(G.jumpModel); G.jumpModel.userData.dispose(); G.jumpModel = null; }
+  G.retrieveFrom.copy(tackle.position); G.retrieveT = 0;
+  setState('returning');
 }
-function hookFish() {
+function hookFish(perfect) {
+  G.perfect = perfect;
+  if (perfect) { S.notePerfect(); flashText(G.mode === 'lure' ? '完美刺鱼！' : '完美提竿！'); } else flashText('中鱼！', '#ffffff');
   setState('reeling');
-  G.tension = 0.45; G.progress = 0; G.slackT = 0; G.overT = 0; G.surge = 0; G.nextSurge = rand(0.8, 2);
+  G.tension = 0.45; G.progress = perfect ? 0.15 : 0; G.slackT = 0; G.overT = 0; G.evt = null; G.evtT = rand(0.8, 1.8);
   G.holding = true;
-  spawnSplash(bobber.position, 25, 0.8);
+  followShadow.visible = false;
+  spawnSplash(tackle.position, 25, 0.8);
+  if (G.fish.sp.predator) {
+    const m = buildFish(G.fish.sp); const L = clamp(0.42 * Math.cbrt(G.fish.weight), 0.15, 2.4);
+    m.scale.setScalar(L); m.visible = false; scene.add(m); G.jumpModel = m;
+  }
   if (navigator.vibrate) navigator.vibrate(40);
 }
 function landFish() {
   const { sp, weight } = G.fish;
-  const avg = (sp.w[0] + sp.w[1]) / 2;
-  const score = Math.round(sp.score * (0.6 + 0.4 * weight / avg) * (1 + (sp.diff - 1) * 0.1));
-  const prev = save.collection[sp.id];
-  const isNew = !prev, isRecord = prev && weight > prev.maxW;
-  save.collection[sp.id] = { count: (prev?.count || 0) + 1, maxW: Math.max(prev?.maxW || 0, weight) };
-  save.coins += score; save.catches += 1; persist(); refreshHud();
-  spawnSplash(bobber.position, 60, 1.3); spawnRipple(bobber.position, 1.5);
-  // 3D 展示鱼
+  const info = S.recordCatch(sp, weight, { mode: G.mode, perfect: G.perfect });
+  G.catchInfo = info;
+  if (G.jumpModel) { scene.remove(G.jumpModel); G.jumpModel.userData.dispose(); G.jumpModel = null; }
+  spawnSplash(tackle.position, 60, 1.3); spawnRipple(tackle.position, 1.5);
   const m = buildFish(sp);
-  const len = sp.id === 'sturgeon' ? 0.75 : 0.5;
-  m.scale.setScalar(len);
-  m.position.set(0, innerWidth < innerHeight ? 0.1 : 0.06, -1.05);
+  m.scale.setScalar(sp.id === 'sturgeon' || sp.id === 'gancyu' ? 0.72 : 0.5);
+  m.position.set(0, innerWidth < innerHeight ? 0.12 : 0.07, -1.05);
   m.userData.uniforms.uAmp.value = 0.12; m.userData.uniforms.uSpeed.value = 11;
   camera.add(m); G.catchModel = m;
-  const R = RARITY[sp.rarity];
-  ui.card.style.setProperty('--rc', R.color);
-  ui.card.querySelector('.c-rar').textContent = R.name;
-  ui.card.querySelector('.c-name').textContent = sp.name;
-  ui.card.querySelector('.c-weight').textContent = weight >= 10 ? `${weight.toFixed(1)} kg` : `${weight.toFixed(2)} kg`;
-  ui.card.querySelector('.c-score').textContent = `+${score} 金币`;
-  ui.card.querySelector('.c-desc').textContent = sp.desc;
-  ui.card.querySelector('.c-tag').textContent = isNew ? '★ 新鱼种！已收入图鉴' : isRecord ? '▲ 刷新最重纪录！' : `第 ${save.collection[sp.id].count} 次捕获`;
-  ui.card.classList.add('show');
+  const R = RARITY[sp.rarity], c = ui.card;
+  c.style.setProperty('--rc', R.color);
+  c.querySelector('.c-rar').textContent = R.name;
+  c.querySelector('.c-name').textContent = sp.name;
+  c.querySelector('.c-weight').textContent = weight >= 10 ? `${weight.toFixed(1)} kg` : `${weight.toFixed(2)} kg`;
+  c.querySelector('.c-value').textContent = `估价 ${info.value} 金币`;
+  c.querySelector('.c-bonus').textContent = `渔获奖励 +${info.bonus} 金币 · +${info.xp} 经验${G.perfect ? '（完美加成）' : ''}`;
+  c.querySelector('.c-desc').textContent = sp.desc;
+  c.querySelector('.c-tag').textContent = info.isNew ? '★ 新鱼种！已收入图鉴' : info.isRecord ? '▲ 刷新最重纪录！' : `第 ${save.collection[sp.id].count} 次捕获`;
+  const full = S.netFull();
+  $('cardKeep').disabled = full;
+  $('cardKeep').textContent = full ? '鱼护已满' : `放入鱼护 (${save.net.length}/${S.netCap()})`;
+  $('cardSell').innerHTML = `直接出售 <b>+${info.value}</b>`;
+  c.classList.add('show');
   if (navigator.vibrate) navigator.vibrate([30, 40, 60]);
+  UI.refreshHud();
   setState('caught');
 }
-function closeCard() {
+function closeCard(action) {
+  const info = G.catchInfo; if (!info) return;
+  if (action === 'keep' && !S.keepFish(info.fish)) action = 'sell';
+  if (action === 'keep') UI.toast(`${speciesById[info.fish.id].name} 已放入鱼护`);
+  if (action === 'sell') { S.sellCoins(info.value); UI.toast(`出售 +${info.value} 金币`); }
+  if (action === 'release') { S.addXp(3); S.persist(); UI.toast('放生了，功德 +1（经验 +3）'); }
   ui.card.classList.remove('show');
   if (G.catchModel) { camera.remove(G.catchModel); G.catchModel.userData.dispose(); G.catchModel = null; }
-  G.fish = null;
+  G.fish = null; G.catchInfo = null;
+  UI.refreshHud();
   setState('idle');
 }
 
+// 露亚：抽竿
+function twitch() {
+  const now = performance.now();
+  G.twitches = G.twitches.filter(t => now - t < 2000); G.twitches.push(now);
+  const toCam = new THREE.Vector3().subVectors(CAM_POS, G.lp).setY(0).normalize();
+  G.lp.addScaledVector(toCam, 0.5);
+  G.speed = Math.min(1, G.speed + 0.25);
+  spawnRipple(G.lp, 0.4, 0.8);
+  if (S.lure().shape === 'popper' || S.lure().shape === 'frog') spawnSplash(G.lp, 8, 0.4);
+  if (G.twitches.length > 5) { G.attract = Math.max(0, G.attract - 0.35); UI.toast('抽得太猛，鱼被吓到了'); G.twitches = []; }
+  else G.attract = Math.min(1, G.attract + 0.08 * S.lure().twitch);
+  rod.pitch += 0.12;
+}
+
 // ---------------- 输入 ----------------
-let pointerX = null;
+let pointerX = null, started = false;
 function onPress() {
-  if (!started) return;
+  if (!started || UI.isOpen()) return;
+  G.pressT = performance.now();
   switch (G.state) {
     case 'idle': G.power = 0; G.powerDir = 1; setState('charging'); break;
-    case 'waiting': startRetrieve('太早了，鱼还没咬钩～'); break;
-    case 'bite': hookFish(); break;
+    case 'waiting': startReturn(G.dip > 0.12 ? '提早了！鱼只是在试口，被吓跑了' : '还没有鱼咬钩，鱼被惊走了'); break;
+    case 'bite': hookFish(G.t <= G.perfectWin); break;
+    case 'strike': hookFish(G.t <= G.perfectWin); break;
+    case 'lure': G.holding = true; break;
     case 'reeling': G.holding = true; break;
   }
 }
 function onRelease() {
   if (G.state === 'charging') startCast();
   else if (G.state === 'reeling') G.holding = false;
+  else if (G.state === 'lure') { G.holding = false; if (performance.now() - G.pressT < 180) twitch(); }
 }
 canvas.addEventListener('pointerdown', e => { pointerX = e.clientX; onPress(); });
 ui.action.addEventListener('pointerdown', e => { e.stopPropagation(); pointerX = e.clientX; onPress(); });
@@ -320,16 +378,25 @@ const keys = {};
 addEventListener('keydown', e => {
   if (e.repeat) return;
   keys[e.code] = true;
+  if (e.code === 'Escape' && UI.isOpen()) UI.close();
   if (e.code === 'Space' || e.code === 'Enter') {
     e.preventDefault();
-    if (G.state === 'caught' && ui.card.classList.contains('show')) closeCard(); else onPress();
+    if (G.state === 'caught') closeCard(S.netFull() ? 'sell' : 'keep'); else onPress();
   }
 });
 addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Space' || e.code === 'Enter') onRelease(); });
 addEventListener('contextmenu', e => e.preventDefault());
-$('cardBtn').addEventListener('click', closeCard);
-$('dexBtn').addEventListener('click', () => { renderDex(); ui.dex.classList.add('show'); });
-$('dexClose').addEventListener('click', () => ui.dex.classList.remove('show'));
+$('cardKeep').addEventListener('click', () => closeCard('keep'));
+$('cardSell').addEventListener('click', () => closeCard('sell'));
+$('cardRelease').addEventListener('click', () => closeCard('release'));
+for (const [btn, name] of [['netBtn', 'net'], ['shopBtn', 'shop'], ['questBtn', 'quest'], ['equipBtn', 'equip'], ['dexBtn', 'dex']])
+  $(btn).addEventListener('click', () => UI.open(name));
+$('modeBtn').addEventListener('click', () => {
+  if (G.state !== 'idle') { UI.toast('请先完成当前这一竿'); return; }
+  const target = save.equip.mode === 'lure' ? 'float' : 'lure';
+  if (!S.setMode(target)) UI.toast('还没有露亚竿：完成主线「初次垂钓」或去商店购买');
+  else { UI.toast(target === 'lure' ? `切换为露亚：${S.rod().name} + ${S.lure().name}` : `切换为台钓：${S.rod().name}`); setState('idle'); }
+});
 const qBtn = $('qualityBtn');
 qBtn.textContent = `画质：${quality === 'high' ? '高' : '低'}`;
 qBtn.addEventListener('click', () => { localStorage.setItem('fishing3d_quality', quality === 'high' ? 'low' : 'high'); location.reload(); });
@@ -344,29 +411,93 @@ function onResize() {
 }
 addEventListener('resize', onResize); onResize();
 
+// ---------------- 搏鱼 ----------------
+function updateFight(dt, time, f) {
+  const sp = G.fish.sp, wf = G.fish.wf, rodDef = S.rod(), lineMax = S.line().max;
+  const lureMode = G.mode === 'lure';
+  const strength = (0.16 + sp.diff * 0.075 + wf * 0.1) * (lureMode ? 1.12 : 1) / Math.pow(rodDef.strength, 0.7);
+  // 事件：挣扎 surge / 甩头 shake / 冲刺 run / 跃水 jump
+  if (G.evt) { G.evt.t += dt; if (G.evt.t >= G.evt.dur) { if (G.evt.type === 'jump' && G.jumpModel) G.jumpModel.visible = false; G.evt = null; G.evtT = rand(1.0, 2.8) / (0.7 + sp.diff * 0.12) / (lureMode ? 1.25 : 1); } }
+  else {
+    G.evtT -= dt;
+    if (G.evtT <= 0) {
+      const opts = [['surge', 1], ['shake', lureMode || sp.predator ? 1.3 : 0.25], ['run', sp.diff >= 2.4 || wf > 0.5 ? 0.7 : 0.15], ['jump', sp.predator && G.jumpModel ? (lureMode ? 0.7 : 0.35) : 0]];
+      let r = Math.random() * opts.reduce((a, o) => a + o[1], 0), type = 'surge';
+      for (const [k, w] of opts) { r -= w; if (r <= 0) { type = k; break; } }
+      const dur = { surge: rand(0.5, 1.0) + sp.diff * 0.12, shake: 0.8, run: rand(1.3, 2.2), jump: 1.0 }[type];
+      G.evt = { type, t: 0, dur, slack: 0 };
+      G.shake = type === 'shake' ? 1.4 : 1;
+      spawnSplash(tackle.position, type === 'jump' ? 40 : 18, type === 'jump' ? 1.2 : 0.8);
+      if (type === 'jump' && G.jumpModel) { G.jumpModel.visible = true; G.jumpFrom = tackle.position.clone(); }
+    }
+  }
+  const e = G.evt?.type;
+  let pull = strength * 0.55 + Math.sin(time * 3) * 0.04;
+  if (e === 'surge') pull = strength * 2.1;
+  if (e === 'shake') pull = strength * 0.7 + 0.6 * Math.max(0, Math.sin(G.evt.t * 24));
+  if (e === 'run') pull = strength * 1.8;
+  if (e === 'jump') pull = strength * 0.3;
+  const target = G.holding ? 0.33 + pull : pull * 0.45;
+  G.tension = clamp(G.tension + (target - G.tension) * (1 - Math.exp(-dt * (e === 'shake' ? 6 : 2.6))), 0, 1.6);
+  const eff = G.tension / lineMax;
+  if (G.holding && e !== 'run') G.progress += dt * (0.17 / (0.6 + sp.diff * 0.25 + wf * 0.4)) * (0.85 + 0.15 * rodDef.strength) * (eff > 0.85 ? 0.5 : 1);
+  else G.progress -= dt * (e === 'run' ? 0.07 : e === 'surge' ? 0.06 : 0.015);
+  G.progress = clamp(G.progress, 0, 1);
+  if (eff > 0.96) G.overT += dt; else G.overT = Math.max(0, G.overT - dt * 2);
+  if (eff < 0.15) G.slackT += dt; else G.slackT = Math.max(0, G.slackT - dt);
+  if (e === 'jump' && eff < 0.22) G.evt.slack += dt;
+
+  ui.tension.style.width = `${clamp(eff, 0, 1) * 100}%`;
+  ui.tension.className = eff > 0.85 ? 'danger' : eff < 0.2 ? 'slack' : 'safe';
+  ui.progress.style.width = `${G.progress * 100}%`;
+  ui.reelMsg.textContent = eff > 0.85 ? '张力过高！快松手！'
+    : e === 'shake' ? '鱼在甩头！稳住，别硬拉！' : e === 'run' ? '鱼在冲刺！松线卸力！' : e === 'jump' ? '鱼跃出水面！保持张力别松线！'
+    : G.slackT > 0.8 ? '线太松了，快收线！' : e === 'surge' ? '鱼在拼命挣扎！' : '保持张力在绿色区域';
+  rod.bend = lerp(rod.bend, 0.2 + eff * 1.6, dt * 8); rod.pitch = lerp(rod.pitch, ROD_REST + 0.25 + eff * 0.15, dt * 5); updateRod();
+  if (reelHandle && G.holding) reelHandle.children[3] && (reelHandle.children[3].rotation.x += dt * 25);
+  const end = new THREE.Vector3(CAM_POS.x + f.x * 3.5, 0, CAM_POS.z + f.z * 3.5);
+  const wild = e === 'surge' || e === 'run' || e === 'shake';
+  const lat = new THREE.Vector3(-f.z, 0, f.x).multiplyScalar(Math.sin(time * (wild ? 3.5 : 1.2)) * (wild ? 2.2 : 0.8) * (1 - G.progress * 0.7));
+  const tgt = new THREE.Vector3().lerpVectors(G.castTo, end, G.progress).add(lat);
+  tackle.position.x = lerp(tackle.position.x, tgt.x, dt * 3); tackle.position.z = lerp(tackle.position.z, tgt.z, dt * 3);
+  tackle.position.y = -0.12 - (wild ? 0.08 : 0);
+  if (Math.random() < dt * (wild ? 10 : 3)) spawnRipple(tackle.position, 0.7, 0.9);
+  if (wild && Math.random() < dt * 8) spawnSplash(tackle.position, 6, 0.6);
+  // 跃水动画
+  if (e === 'jump' && G.jumpModel) {
+    const k = G.evt.t / G.evt.dur, m = G.jumpModel, L = m.scale.x;
+    m.position.set(tackle.position.x, Math.sin(k * Math.PI) * (0.5 + L * 0.9) - 0.1, tackle.position.z);
+    m.rotation.set(0, Math.atan2(f.x, f.z) + Math.PI / 2, (0.5 - k) * 2.2);
+    m.userData.uniforms.uTime.value += dt; m.userData.uniforms.uAmp.value = 0.14; m.userData.uniforms.uSpeed.value = 16;
+    if (k > 0.92 && !G.evt.splashed) { G.evt.splashed = true; spawnSplash(tackle.position, 40, 1.2); spawnRipple(tackle.position, 1.5); }
+  }
+  if (G.overT > 0.35) { G.shake = 1.5; if (navigator.vibrate) navigator.vibrate(120); startReturn('线断了！张力过大（升级鱼线可提高上限）'); return 0; }
+  if (e === 'jump' && G.evt.slack > 0.35) { startReturn('鱼跃水甩钩了！跃水时要保持张力'); return 0; }
+  if (G.slackT > 2.6) { startReturn('鱼脱钩了！线太松了'); return 0; }
+  if (G.progress >= 1) { landFish(); return 0; }
+  return Math.max(0, 0.3 - eff * 0.32);
+}
+
 // ---------------- 主循环 ----------------
-let started = false;
 const clock = new THREE.Clock();
-let ambientT = rand(3, 8);
+let ambientT = rand(3, 8), dailyCheckT = 0;
+const tmpV = new THREE.Vector3();
 function tick() {
   const dt = Math.min(clock.getDelta(), 0.05), time = clock.elapsedTime;
   G.t += dt;
   world.update(dt, time);
-  const s = G.state;
-  const f = forward();
-
+  const s = G.state, f = forward();
   if (keys.KeyA || keys.ArrowLeft) G.aim = clamp(G.aim + dt * 0.6, -0.6, 0.6);
   if (keys.KeyD || keys.ArrowRight) G.aim = clamp(G.aim - dt * 0.6, -0.6, 0.6);
 
-  // 镜头：轻微呼吸 + 抖动
   G.shake = Math.max(0, G.shake - dt * 2);
   camera.position.set(CAM_POS.x + Math.sin(time * 0.7) * 0.01, CAM_POS.y + Math.sin(time * 1.3) * 0.012, CAM_POS.z);
   camera.rotation.y = G.aim + (Math.random() - 0.5) * G.shake * 0.01;
   camera.rotation.x = G.pitch + (Math.random() - 0.5) * G.shake * 0.01;
 
   let sag = 0.15;
-  const bobScale = clamp(bobber.position.distanceTo(CAM_POS) / 7, 1, 6);
-  const waveY = Math.sin(time * 2.1 + bobber.position.x) * 0.015 + Math.sin(time * 3.3 + bobber.position.z) * 0.01;
+  const tackleScale = clamp(tackle.position.distanceTo(CAM_POS) / 7, 1, 6) * (G.mode === 'lure' && s !== 'idle' && s !== 'charging' ? 1.4 : 1);
+  const waveY = Math.sin(time * 2.1 + tackle.position.x) * 0.015 + Math.sin(time * 3.3 + tackle.position.z) * 0.01;
 
   if (s === 'idle' || s === 'charging') {
     if (s === 'charging') {
@@ -375,88 +506,121 @@ function tick() {
       ui.powerFill.style.width = `${G.power * 100}%`;
       rod.pitch = lerp(rod.pitch, ROD_REST + 0.85 * G.power + 0.15, 1 - Math.exp(-dt * 10));
     } else rod.pitch = lerp(rod.pitch, ROD_REST, 1 - Math.exp(-dt * 6));
-    rod.bend = lerp(rod.bend, 0.08, dt * 5);
-    updateRod();
-    rodTip.getWorldPosition(_tip);
-    bobber.position.set(_tip.x + Math.sin(time * 1.7) * 0.03, _tip.y - 0.75, _tip.z + Math.cos(time * 1.3) * 0.03);
-    bobber.scale.setScalar(1); bobber.rotation.set(Math.sin(time * 1.7) * 0.1, 0, 0);
+    rod.bend = lerp(rod.bend, 0.08, dt * 5); updateRod();
+    hangPos(tackle.position); tackle.position.x += Math.sin(time * 1.7) * 0.03; tackle.position.z += Math.cos(time * 1.3) * 0.03;
+    tackle.scale.setScalar(1); tackle.rotation.set(Math.sin(time * 1.7) * 0.1, G.aim, 0);
     sag = 0;
   } else if (s === 'casting') {
     const k = clamp(G.t / G.castDur, 0, 1);
     rod.pitch = lerp(rod.pitch, ROD_REST - 0.35, 1 - Math.exp(-dt * 14)); rod.bend = lerp(rod.bend, 0.35, dt * 8); updateRod();
     const apex = 3 + G.castFrom.distanceTo(G.castTo) * 0.22;
-    bobber.position.lerpVectors(G.castFrom, G.castTo, k);
-    bobber.position.y = lerp(G.castFrom.y, 0, k) + Math.sin(k * Math.PI) * apex;
-    bobber.rotation.x += dt * 8; bobber.scale.setScalar(bobScale);
+    tackle.position.lerpVectors(G.castFrom, G.castTo, k);
+    tackle.position.y = lerp(G.castFrom.y, 0, k) + Math.sin(k * Math.PI) * apex;
+    tackle.rotation.x += dt * 8; tackle.scale.setScalar(tackleScale);
     sag = 0.02;
     if (k >= 1) {
-      bobber.rotation.set(0, 0, 0);
+      tackle.rotation.set(0, Math.atan2(f.x, f.z) + Math.PI / 2, 0);
       spawnSplash(G.castTo, 30, 0.9); spawnRipple(G.castTo, 1.2);
-      G.waitT = rand(2.5, 7.5); G.nibbleT = rand(0.8, 2);
-      setState('waiting');
+      if (G.mode === 'float') {
+        G.waitT = rand(3, 8) * BAITS[G.baitUsed || 'none'].wait; G.nibbleT = rand(0.8, 2); G.nibbling = 0; G.dip = 0;
+        setState('waiting');
+      } else {
+        G.lp.copy(G.castTo); G.speed = 0; G.attract = 0.05; G.twitches = []; G.follower = null; G.holding = false;
+        const L = S.lure();
+        ui.speedZone.style.left = `${(L.pref - L.zone) * 100}%`; ui.speedZone.style.width = `${L.zone * 200}%`;
+        setState('lure');
+      }
     }
   } else if (s === 'waiting' || s === 'bite') {
     rod.pitch = lerp(rod.pitch, ROD_REST, dt * 4); rod.bend = lerp(rod.bend, 0.1, dt * 3); updateRod();
-    G.dip = Math.max(0, G.dip - dt * 3);
     if (s === 'waiting') {
+      G.dip = Math.max(0, G.dip - dt * 2.5);
       G.nibbleT -= dt;
-      if (G.nibbleT <= 0) { G.dip = 0.25; G.nibbleT = rand(1, 2.5); spawnRipple(bobber.position, 0.5, 1); } // 试探性轻啄
+      const remain = G.waitT - G.t;
+      if (G.nibbleT <= 0) {
+        G.dip = rand(0.18, 0.32); G.nibbling = 3; G.nibbleT = rand(0.6, 1.6) * (remain < 2 ? 0.6 : 1.3);
+        spawnRipple(tackle.position, 0.45, 0.9); ui.hint.textContent = HINT.waiting();
+      }
+      G.nibbling = Math.max(0, G.nibbling - dt);
       if (G.t >= G.waitT) {
-        G.fish = pickFish(G.castPower || 0.5);
-        G.biteWindow = 1.45 - G.fish.sp.diff * 0.08;
-        spawnSplash(bobber.position, 18, 0.6); spawnRipple(bobber.position, 1.1, 1.2);
+        G.fish = S.pickFish('float', G.castPower);
+        const sens = S.rod().sens;
+        G.perfectWin = 0.32 * sens;
+        G.biteWindow = G.perfectWin + (1.15 - G.fish.sp.diff * 0.06) * sens;
+        spawnSplash(tackle.position, 14, 0.5); spawnRipple(tackle.position, 1.1, 1.2);
         if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
         setState('bite');
       }
     } else {
-      G.dip = 0.9 + Math.sin(G.t * 22) * 0.1;
-      if (Math.random() < dt * 4) spawnRipple(bobber.position, 0.8, 1);
-      if (G.t > G.biteWindow) { G.fish = null; startRetrieve('鱼跑了… 反应慢了一点'); }
+      G.dip = lerp(G.dip, 1.25, dt * 14);   // 黑漂：整个浮漂被拖入水中
+      if (G.t > G.perfectWin && !ui.bite.classList.contains('show')) { ui.bite.textContent = '鱼上钩了！点击收竿'; ui.bite.classList.add('show'); }
+      if (Math.random() < dt * 4) spawnRipple(tackle.position, 0.8, 1);
+      if (G.t > G.biteWindow) startReturn('鱼跑了… 反应慢了一点');
     }
-    bobber.position.set(G.castTo.x, waveY - G.dip * 0.16, G.castTo.z);
-    bobber.scale.setScalar(bobScale);
+    tackle.position.set(G.castTo.x, waveY - G.dip * 0.16, G.castTo.z);
+    tackle.scale.setScalar(tackleScale);
     sag = 0.35;
+  } else if (s === 'lure' || s === 'strike') {
+    const L = S.lure();
+    if (s === 'lure') {
+      G.speed = clamp(G.speed + ((G.holding ? 1 : 0) - G.speed) * (1 - Math.exp(-dt * 2.2)), 0, 1);
+      const toCam = tmpV.subVectors(CAM_POS, G.lp).setY(0); const dist = toCam.length(); toCam.normalize();
+      G.lp.addScaledVector(toCam, G.speed * 2.4 * dt);
+      const inZone = Math.abs(G.speed - L.pref) < L.zone;
+      G.attract = clamp(G.attract + dt * (inZone ? 0.3 : -0.18) * (inZone ? S.rod().sens : 1), 0, 1);
+      ui.speedFill.style.width = `${G.speed * 100}%`;
+      ui.speedFill.className = inZone ? 'good' : '';
+      ui.attrFill.style.width = `${G.attract * 100}%`;
+      // 鱼追饵
+      if (!G.follower && G.attract > 0.35) {
+        G.follower = { fish: S.pickFish('lure', G.castPower), off: 2.5 };
+        followShadow.visible = true; UI.toast('有鱼在追饵！保持节奏', 1400);
+      }
+      if (G.follower) {
+        const fl = G.follower; fl.off = lerp(fl.off, 0.9, dt * 0.8);
+        const back = tmpV.subVectors(G.lp, CAM_POS).setY(0).normalize();
+        followShadow.position.set(G.lp.x + back.x * fl.off + Math.sin(time * 6) * 0.08, 0.02, G.lp.z + back.z * fl.off);
+        followShadow.rotation.z = -Math.atan2(back.z, back.x);
+        const len = clamp(0.42 * Math.cbrt(fl.fish.weight), 0.2, 2.2) * 1.3 * clamp(dist / 15, 1, 3.5);
+        followShadow.scale.set(len, len * 0.32, 1);
+        followShadow.material.opacity = 0.35 + G.attract * 0.3;
+        if (Math.random() < dt * 2) spawnRipple(followShadow.position, 0.35, 0.8);
+        ui.lureMsg.textContent = `有鱼在追！诱鱼值越高越容易攻击`;
+        if (G.attract < 0.12) { G.follower = null; followShadow.visible = false; UI.toast('鱼失去兴趣游走了', 1400); }
+        else if (Math.random() < dt * G.attract * G.attract * 1.6) {
+          G.fish = G.follower.fish; G.follower = null; followShadow.visible = false;
+          const sens = S.rod().sens;
+          G.perfectWin = 0.3 * sens; G.biteWindow = G.perfectWin + (0.75 - G.fish.sp.diff * 0.04) * sens;
+          spawnSplash(G.lp, 45, 1.2); spawnRipple(G.lp, 1.4, 1.2);
+          ui.bite.textContent = '咬饵了！点击刺鱼！'; ui.bite.classList.add('show');
+          if (navigator.vibrate) navigator.vibrate([80, 30, 80]);
+          setState('strike');
+        }
+      } else ui.lureMsg.textContent = inZone ? '速度合适，鱼正在被吸引…' : G.speed > L.pref ? '收得太快了' : '收得太慢了';
+      if (s === 'lure' && G.state === 'lure') {
+        G.wakeT -= dt; if (G.speed > 0.2 && G.wakeT <= 0) { G.wakeT = 0.25; spawnRipple(G.lp, 0.25 + G.speed * 0.3, 0.8); }
+        if (dist < 4.5) startReturn(G.follower ? '鱼跟到脚下没有攻击… 再试一次' : '没有鱼咬饵，换个节奏再试试');
+      }
+      rod.pitch = lerp(rod.pitch, ROD_REST + 0.1, dt * 5); rod.bend = lerp(rod.bend, 0.12 + G.speed * 0.25, dt * 5); updateRod();
+      if (reelHandle && G.holding && reelHandle.children[3]) reelHandle.children[3].rotation.x += dt * 20;
+    } else {
+      if (Math.random() < dt * 6) spawnRipple(G.lp, 0.8, 0.8);
+      if (G.t > G.biteWindow) startReturn('鱼吐饵了… 刺鱼要快！');
+    }
+    const surface = L.shape === 'popper' || L.shape === 'frog';
+    tackle.position.set(G.lp.x, surface ? 0.0 + waveY * 0.5 : -0.02 + waveY * 0.3, G.lp.z);
+    tackle.rotation.set(0, Math.atan2(f.x, f.z) + Math.PI / 2 + Math.sin(time * 9) * 0.25 * G.speed, 0);
+    tackle.scale.setScalar(tackleScale);
+    sag = 0.12 * (1 - G.speed);
   } else if (s === 'reeling') {
-    const sp = G.fish.sp, wf = G.fish.wf;
-    const strength = 0.16 + sp.diff * 0.075 + wf * 0.1;
-    // 鱼的挣扎节奏
-    if (G.surge > 0) { G.surge -= dt; if (G.surge <= 0) G.nextSurge = rand(1.2, 3.2) / (0.7 + sp.diff * 0.12); }
-    else { G.nextSurge -= dt; if (G.nextSurge <= 0) { G.surge = rand(0.5, 1.0) + sp.diff * 0.12; G.shake = 1; spawnSplash(bobber.position, 20, 0.8); } }
-    const surging = G.surge > 0;
-    const pull = strength * (surging ? 2.1 : 0.55) + Math.sin(time * 3) * 0.04;
-    const target = G.holding ? 0.33 + pull : pull * 0.45;
-    G.tension = clamp(G.tension + (target - G.tension) * (1 - Math.exp(-dt * 2.6)), 0, 1.05);
-    if (G.holding) G.progress += dt * (0.17 / (0.6 + sp.diff * 0.25 + wf * 0.4)) * (G.tension > 0.85 ? 0.5 : 1);
-    else G.progress -= dt * (surging ? 0.06 : 0.015);
-    G.progress = clamp(G.progress, 0, 1);
-    if (G.tension > 0.96) G.overT += dt; else G.overT = Math.max(0, G.overT - dt * 2);
-    if (G.tension < 0.15) G.slackT += dt; else G.slackT = Math.max(0, G.slackT - dt);
-    ui.tension.style.width = `${clamp(G.tension, 0, 1) * 100}%`;
-    ui.tension.className = G.tension > 0.85 ? 'danger' : G.tension < 0.2 ? 'slack' : 'safe';
-    ui.progress.style.width = `${G.progress * 100}%`;
-    ui.reelMsg.textContent = G.tension > 0.85 ? '张力过高！快松手！' : G.slackT > 0.8 ? '线太松了，快收线！' : surging ? '鱼在拼命挣扎！' : '保持张力在绿色区域';
-    rod.bend = lerp(rod.bend, 0.2 + G.tension * 1.6, dt * 8); rod.pitch = lerp(rod.pitch, ROD_REST + 0.25 + G.tension * 0.15, dt * 5); updateRod();
-    rodBase.userData.reelHandle.rotation.x += G.holding ? dt * 25 : 0;
-    const end = new THREE.Vector3(CAM_POS.x + f.x * 3.5, 0, CAM_POS.z + f.z * 3.5);
-    const along = G.progress;
-    const lat = new THREE.Vector3(-f.z, 0, f.x).multiplyScalar(Math.sin(time * (surging ? 3.5 : 1.2)) * (surging ? 2.2 : 0.8) * (1 - along * 0.7));
-    const tgt = new THREE.Vector3().lerpVectors(G.castTo, end, along).add(lat);
-    bobber.position.x = lerp(bobber.position.x, tgt.x, dt * 3); bobber.position.z = lerp(bobber.position.z, tgt.z, dt * 3);
-    bobber.position.y = waveY - 0.12 - (surging ? 0.08 : 0);
-    bobber.scale.setScalar(bobScale);
-    if (Math.random() < dt * (surging ? 10 : 3)) spawnRipple(bobber.position, 0.7, 0.9);
-    if (surging && Math.random() < dt * 8) spawnSplash(bobber.position, 6, 0.6);
-    sag = Math.max(0, 0.3 - G.tension * 0.32);
-    if (G.overT > 0.35) { G.fish = null; G.shake = 1.5; if (navigator.vibrate) navigator.vibrate(120); startRetrieve('线断了！张力过大'); }
-    else if (G.slackT > 2.6) { G.fish = null; startRetrieve('鱼脱钩了！线太松了'); }
-    else if (G.progress >= 1) landFish();
-  } else if (s === 'retrieve') {
+    tackle.scale.setScalar(tackleScale);
+    sag = updateFight(dt, time, f);
+  } else if (s === 'returning') {
     G.retrieveT += dt;
     const k = clamp(G.retrieveT / 0.8, 0, 1);
-    rodTip.getWorldPosition(_tip);
-    bobber.position.lerpVectors(G.retrieveFrom, new THREE.Vector3(_tip.x, _tip.y - 0.75, _tip.z), k);
-    bobber.position.y += Math.sin(k * Math.PI) * 2;
-    bobber.scale.setScalar(lerp(bobber.scale.x, 1, k));
+    tackle.position.lerpVectors(G.retrieveFrom, hangPos(tmpV), k);
+    tackle.position.y += Math.sin(k * Math.PI) * 2;
+    tackle.scale.setScalar(lerp(tackle.scale.x, 1, k));
     rod.pitch = lerp(rod.pitch, ROD_REST + 0.3, dt * 6); rod.bend = lerp(rod.bend, 0.1, dt * 6); updateRod();
     sag = 0.05;
     if (k >= 1) setState('idle');
@@ -467,24 +631,23 @@ function tick() {
       u.uAmp.value = lerp(u.uAmp.value, 0.05, dt * 0.5);
       G.catchModel.rotation.y = Math.sin(time * 0.8) * 0.5;
       G.catchModel.rotation.z = Math.sin(time * 1.3) * 0.08;
-      rodTip.getWorldPosition(_tip);
       const fp = new THREE.Vector3(); G.catchModel.getWorldPosition(fp);
-      bobber.position.lerp(fp.add(new THREE.Vector3(0, 0.25, 0)), dt * 6); bobber.scale.setScalar(1);
+      tackle.position.lerp(fp.add(new THREE.Vector3(0, 0.25, 0)), dt * 6); tackle.scale.setScalar(1);
     }
     sag = 0.02;
   }
   updateLine(sag);
   updateFx(dt);
-  // 远距离浮漂指示标记
-  const showMark = (s === 'waiting' || s === 'bite' || s === 'reeling') && bobber.position.distanceTo(CAM_POS) > 10;
+
+  // 远距离标记
+  const showMark = ['waiting', 'bite', 'reeling', 'lure', 'strike'].includes(G.state) && tackle.position.distanceTo(CAM_POS) > 10;
   if (showMark) {
-    const v = bobber.position.clone(); v.y += 0.35 * bobber.scale.y; v.project(camera);
+    const v = tackle.position.clone(); v.y += 0.35 * tackle.scale.y; v.project(camera);
     ui.mark.style.transform = `translate(${(v.x * 0.5 + 0.5) * innerWidth}px, ${(-v.y * 0.5 + 0.5) * innerHeight}px)`;
   }
   ui.mark.classList.toggle('show', showMark);
-  ui.mark.classList.toggle('alert', s === 'bite');
+  ui.mark.classList.toggle('alert', G.state === 'bite' || G.state === 'strike');
 
-  // 远处随机“鱼跃”
   ambientT -= dt;
   if (ambientT <= 0) {
     ambientT = rand(4, 10);
@@ -492,20 +655,27 @@ function tick() {
     const p = new THREE.Vector3(CAM_POS.x - Math.sin(a) * d, 0, CAM_POS.z - Math.cos(a) * d);
     spawnRipple(p, 1.3, 2.2); spawnSplash(p, 12, 0.6);
   }
+  dailyCheckT -= dt;
+  if (dailyCheckT <= 0) { dailyCheckT = 30; if (S.ensureDaily()) { UI.toast('新的一天，每日任务已刷新！'); UI.refreshHud(); } }
 
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
 
 // ---------------- 启动 ----------------
-refreshHud();
+applyGear();
+UI.refreshHud();
 setState('idle');
-updateRod();
 requestAnimationFrame(tick);
 setTimeout(() => {
   try { thumbs = makeThumbnails(); } catch (e) { console.warn('缩略图生成失败', e); }
   document.body.classList.add('ready');
-  const sb = $('startBtn'); sb.disabled = false; sb.textContent = '开始钓鱼';
+  const sb = $('startBtn'); sb.disabled = false; sb.textContent = save.catches ? '继续钓鱼' : '开始钓鱼';
 }, 50);
-$('startBtn').addEventListener('click', () => { started = true; $('start').classList.add('hide'); });
-window.__game = { G, save, setPower: p => { G.power = p; }, startCast, onPress, onRelease, hookFish, landFish, pickFish, setState };
+$('startBtn').addEventListener('click', () => {
+  started = true; $('start').classList.add('hide');
+  if (migrated) UI.toast('已从旧版本迁移存档，欢迎回来！', 2600);
+  else if (!save.catches) UI.toast('新手提示：先用台钓钓 3 条鱼，完成主线可获得露亚竿', 3200);
+});
+// 调试 / 自动化测试接口
+window.__game = { G, save, S, UI, startCast, onPress, onRelease, hookFish, landFish, setState, closeCard, twitch };
