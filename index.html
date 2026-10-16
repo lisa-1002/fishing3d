@@ -16,25 +16,40 @@
 
 <div id="hud">
   <div class="stats">
-    <div class="stat"><span class="ico coin"></span><b id="coins">0</b><small>金币</small></div>
-    <div class="stat"><span class="ico fishico"></span><b id="catches">0</b><small>渔获</small></div>
+    <div class="stat" id="coinChip"><span class="ico coin"></span><b id="coins">0</b><small>金币</small></div>
+    <div class="stat lvl"><span class="lv">Lv.<b id="lvl">1</b></span><span class="xpbar"><u id="xpFill"></u></span></div>
   </div>
-  <div class="btns">
-    <button id="dexBtn">图鉴</button>
-    <button id="qualityBtn">画质：高</button>
-  </div>
+  <div class="btns"><button id="qualityBtn">画质：高</button></div>
+</div>
+<div id="gearInfo"></div>
+
+<div id="menu">
+  <button id="netBtn"><b>鱼护</b><small id="netCount">0/8</small></button>
+  <button id="shopBtn"><b>商店</b></button>
+  <button id="questBtn"><b>任务</b><span id="questDot">0</span></button>
+  <button id="equipBtn"><b>装备</b></button>
+  <button id="dexBtn"><b>图鉴</b></button>
 </div>
 
 <div id="bobMark"></div>
 <div id="hint"></div>
 <div id="bitePrompt">鱼上钩了！点击收竿</div>
+<div id="strikeFx"></div>
 
-<div id="powerWrap" class="panel">
+<div id="powerWrap" class="panelHud">
   <div class="label">抛竿力度</div>
   <div class="bar"><div id="powerFill"></div><span class="tick" style="left:85%"></span></div>
 </div>
 
-<div id="reelWrap" class="panel">
+<div id="lureWrap" class="panelHud">
+  <div id="lureMsg">按住收线，找到合适的速度</div>
+  <div class="label">收线速度 <small>（绿色为当前路亚饵的最佳区间）</small></div>
+  <div class="bar"><div id="speedZone"></div><div id="speedFill"></div></div>
+  <div class="label">诱鱼值</div>
+  <div class="bar"><div id="attrFill"></div></div>
+</div>
+
+<div id="reelWrap" class="panelHud">
   <div id="reelMsg">保持张力在绿色区域</div>
   <div class="label">张力</div>
   <div class="bar tension"><div class="zone"></div><div id="tensionFill" class="safe"></div></div>
@@ -42,6 +57,7 @@
   <div class="bar"><div id="progressFill"></div></div>
 </div>
 
+<button id="modeBtn"><b>台钓</b><small>切换露亚</small></button>
 <button id="actionBtn">按住抛竿</button>
 <div id="toast"></div>
 
@@ -49,29 +65,36 @@
   <div class="c-inner">
     <div class="c-rar">普通</div>
     <div class="c-name">鲫鱼</div>
-    <div class="c-row"><span class="c-weight">0.5 kg</span><span class="c-score">+10 金币</span></div>
+    <div class="c-row"><span class="c-weight">0.5 kg</span><span class="c-value">估价 10 金币</span></div>
     <div class="c-tag"></div>
+    <div class="c-bonus"></div>
     <div class="c-desc"></div>
-    <button id="cardBtn">继续钓鱼</button>
+    <div class="c-btns">
+      <button id="cardKeep" class="primary">放入鱼护</button>
+      <button id="cardSell" class="gold">直接出售</button>
+      <button id="cardRelease" class="ghost">放生</button>
+    </div>
   </div>
 </div>
 
-<div id="dex">
-  <div class="dex-box">
-    <div class="dex-head"><span>鱼类图鉴</span><span id="dexCount"></span><button id="dexClose">✕</button></div>
-    <div class="dex-legend"><i style="--rc:#d5dde2">普通</i><i style="--rc:#4fc3f7">稀有</i><i style="--rc:#c77dff">史诗</i><i style="--rc:#ffb300">传说</i></div>
-    <div id="dexGrid"></div>
+<div id="panel">
+  <div class="pbox">
+    <div class="phead"><span id="panelTitle"></span><button id="panelClose">✕</button></div>
+    <div id="panelTabs"></div>
+    <div id="panelBody"></div>
+    <div id="panelFoot"></div>
   </div>
 </div>
 
 <div id="start">
   <div class="start-box">
     <h1>静湖垂钓</h1>
-    <p class="sub">3D 钓鱼 · 原型版</p>
+    <p class="sub">3D 钓鱼 · v2</p>
     <ul>
-      <li><b>抛竿</b>：按住蓄力，松开抛出（力度越大越远，远处更易遇到稀有鱼）</li>
-      <li><b>上钩</b>：浮漂猛沉、出现提示时立即点击收竿</li>
-      <li><b>收线</b>：按住收线，张力保持在绿色区域；过高会断线，过松会脱钩</li>
+      <li><b>台钓</b>：按住蓄力、松开抛竿。浮漂轻点是“试口”，整个沉下去（黑漂）的瞬间提竿 = <b>完美提竿</b></li>
+      <li><b>露亚</b>：抛出路亚饵后按住收线、松开停顿、轻点抽竿，把速度控制在绿色区间诱鱼攻击，咬饵立刻刺鱼</li>
+      <li><b>搏鱼</b>：张力保持绿色；甩头、冲刺时松手卸力，跃水时别松线</li>
+      <li>鱼放进<b>鱼护</b>后出售换金币，去<b>商店</b>升级装备，完成<b>任务</b>拿奖励</li>
     </ul>
     <button id="startBtn" disabled>加载中…</button>
   </div>
