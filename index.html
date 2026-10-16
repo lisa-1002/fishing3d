@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1a2a33">
+<title>静湖垂钓 3D</title>
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div class="stats">
+    <div class="stat"><span class="ico coin"></span><b id="coins">0</b><small>金币</small></div>
+    <div class="stat"><span class="ico fishico"></span><b id="catches">0</b><small>渔获</small></div>
+  </div>
+  <div class="btns">
+    <button id="dexBtn">图鉴</button>
+    <button id="qualityBtn">画质：高</button>
+  </div>
+</div>
+
+<div id="bobMark"></div>
+<div id="hint"></div>
+<div id="bitePrompt">鱼上钩了！点击收竿</div>
+
+<div id="powerWrap" class="panel">
+  <div class="label">抛竿力度</div>
+  <div class="bar"><div id="powerFill"></div><span class="tick" style="left:85%"></span></div>
+</div>
+
+<div id="reelWrap" class="panel">
+  <div id="reelMsg">保持张力在绿色区域</div>
+  <div class="label">张力</div>
+  <div class="bar tension"><div class="zone"></div><div id="tensionFill" class="safe"></div></div>
+  <div class="label">收线进度</div>
+  <div class="bar"><div id="progressFill"></div></div>
+</div>
+
+<button id="actionBtn">按住抛竿</button>
+<div id="toast"></div>
+
+<div id="card">
+  <div class="c-inner">
+    <div class="c-rar">普通</div>
+    <div class="c-name">鲫鱼</div>
+    <div class="c-row"><span class="c-weight">0.5 kg</span><span class="c-score">+10 金币</span></div>
+    <div class="c-tag"></div>
+    <div class="c-desc"></div>
+    <button id="cardBtn">继续钓鱼</button>
+  </div>
+</div>
+
+<div id="dex">
+  <div class="dex-box">
+    <div class="dex-head"><span>鱼类图鉴</span><span id="dexCount"></span><button id="dexClose">✕</button></div>
+    <div class="dex-legend"><i style="--rc:#d5dde2">普通</i><i style="--rc:#4fc3f7">稀有</i><i style="--rc:#c77dff">史诗</i><i style="--rc:#ffb300">传说</i></div>
+    <div id="dexGrid"></div>
+  </div>
+</div>
+
+<div id="start">
+  <div class="start-box">
+    <h1>静湖垂钓</h1>
+    <p class="sub">3D 钓鱼 · 原型版</p>
+    <ul>
+      <li><b>抛竿</b>：按住蓄力，松开抛出（力度越大越远，远处更易遇到稀有鱼）</li>
+      <li><b>上钩</b>：浮漂猛沉、出现提示时立即点击收竿</li>
+      <li><b>收线</b>：按住收线，张力保持在绿色区域；过高会断线，过松会脱钩</li>
+    </ul>
+    <button id="startBtn" disabled>加载中…</button>
+  </div>
+</div>
+<noscript>需要启用 JavaScript 才能游玩。</noscript>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
