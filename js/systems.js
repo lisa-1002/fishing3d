@@ -1,0 +1,213 @@
+// 游戏系统：经济（出售/商店）、经验等级、任务、选鱼
+import { SPECIES, RARITY, speciesById } from './fish.js';
+import { RODS, LINES, NETS, BAITS, LURES, RARITY_BASE, LEVEL_XP, MAX_LEVEL, DAILY_TEMPLATES, MAIN_QUESTS } from './data.js';
+import { writeSave } from './save.js';
+
+export function createSystems(save, hooks = {}) {
+  const S = {};
+  const emit = (n, ...a) => hooks[n] && hooks[n](...a);
+  S.persist = () => writeSave(save);
+
+  // ---------- 等级 ----------
+  S.level = () => { let l = 1; for (let i = 0; i < LEVEL_XP.length; i++) if (save.xp >= LEVEL_XP[i]) l = i + 1; return l; };
+  S.levelProgress = () => {
+    const l = S.level(); if (l >= MAX_LEVEL) return 1;
+    return (save.xp - LEVEL_XP[l - 1]) / (LEVEL_XP[l] - LEVEL_XP[l - 1]);
+  };
+  S.addXp = (n) => { const before = S.level(); save.xp += n; const after = S.level(); if (after > before) emit('levelUp', after); };
+
+  // ---------- 装备 ----------
+  S.rod = () => RODS[save.equip.mode === 'lure' ? save.equip.lure : save.equip.float] || RODS.bamboo;
+  S.line = () => LINES[save.equip.line] || LINES.nylon;
+  S.netCap = () => (NETS[save.equip.net] || NETS.small).cap;
+  S.bait = () => (save.equip.bait && (save.bait[save.equip.bait] || 0) > 0 ? BAITS[save.equip.bait] : BAITS.none);
+  S.baitId = () => (save.equip.bait && (save.bait[save.equip.bait] || 0) > 0 ? save.equip.bait : 'none');
+  S.lure = () => LURES[save.equip.lureItem] || LURES.spoon;
+  S.canLure = () => !!save.equip.lure && save.owned.lures.length > 0;
+  S.setMode = (m) => {
+    if (m === 'lure' && !S.canLure()) return false;
+    save.equip.mode = m; S.persist(); emit('equipChanged'); return true;
+  };
+  S.consumeBait = () => {
+    const id = S.baitId(); if (id === 'none') return null;
+    save.bait[id]--; if (save.bait[id] <= 0) { delete save.bait[id]; emit('toast', `${BAITS[id].name}用完了`); }
+    S.persist(); return id;
+  };
+  S.equip = (kind, id) => {
+    if (kind === 'float' || kind === 'lure') { if (!save.owned.rods.includes(id)) return; save.equip[kind] = id; }
+    else if (kind === 'line') { if (!save.owned.lines.includes(id)) return; save.equip.line = id; }
+    else if (kind === 'net') { if (!save.owned.nets.includes(id)) return; save.equip.net = id; }
+    else if (kind === 'bait') save.equip.bait = id;
+    else if (kind === 'lureItem') { if (!save.owned.lures.includes(id)) return; save.equip.lureItem = id; }
+    S.persist(); emit('equipChanged');
+  };
+
+  // ---------- 发放物品（商店 / 奖励共用） ----------
+  S.grant = (r) => {
+    const got = [];
+    if (r.coins) { save.coins += r.coins; got.push(`${r.coins} 金币`); }
+    if (r.bait) for (const [id, n] of Object.entries(r.bait)) { save.bait[id] = (save.bait[id] || 0) + n; got.push(`${BAITS[id].name}×${n}`); }
+    const own = (list, id, name, fallback) => {
+      if (save.owned[list].includes(id)) { save.coins += fallback; got.push(`${name}（已拥有，折算 ${fallback} 金币）`); return false; }
+      save.owned[list].push(id); got.push(name); return true;
+    };
+    if (r.rod) { const d = RODS[r.rod]; if (own('rods', r.rod, d.name, Math.round(d.price * 0.5))) { if (d.type === 'lure' && !save.equip.lure) save.equip.lure = r.rod; } }
+    if (r.lure) { const d = LURES[r.lure]; if (own('lures', r.lure, d.name, Math.round(d.price * 0.5))) { if (!save.equip.lureItem) save.equip.lureItem = r.lure; } }
+    if (r.line) own('lines', r.line, LINES[r.line].name, Math.round(LINES[r.line].price * 0.5));
+    if (r.net) { if (own('nets', r.net, NETS[r.net].name, Math.round(NETS[r.net].price * 0.5)) && NETS[r.net].cap > S.netCap()) save.equip.net = r.net; }
+    S.persist(); emit('equipChanged');
+    return got;
+  };
+  S.rewardText = (r) => {
+    const t = [];
+    if (r.coins) t.push(`${r.coins}金币`);
+    if (r.bait) for (const [id, n] of Object.entries(r.bait)) t.push(`${BAITS[id].name}×${n}`);
+    if (r.rod) t.push(RODS[r.rod].name); if (r.lure) t.push(LURES[r.lure].name);
+    if (r.line) t.push(LINES[r.line].name); if (r.net) t.push(NETS[r.net].name);
+    return t.join(' + ');
+  };
+
+  // ---------- 商店 ----------
+  S.buy = (cat, id) => {
+    const tables = { rod: RODS, line: LINES, net: NETS, bait: BAITS, lure: LURES };
+    const d = tables[cat][id];
+    if (S.level() < d.lvl) return `需要等级 ${d.lvl}`;
+    if (save.coins < d.price) return '金币不足';
+    const owned = cat === 'rod' ? save.owned.rods : cat === 'line' ? save.owned.lines : cat === 'net' ? save.owned.nets : cat === 'lure' ? save.owned.lures : null;
+    if (owned && owned.includes(id)) return '已拥有';
+    save.coins -= d.price;
+    if (cat === 'bait') { save.bait[id] = (save.bait[id] || 0) + d.pack; if (S.baitId() === 'none') save.equip.bait = id; }
+    else {
+      owned.push(id);
+      if (cat === 'rod') save.equip[d.type] = id;     // 买了自动装备
+      if (cat === 'line') save.equip.line = id;
+      if (cat === 'net' && d.cap > S.netCap()) save.equip.net = id;
+      if (cat === 'lure') save.equip.lureItem = id;
+    }
+    S.persist(); emit('equipChanged');
+    return null;
+  };
+
+  // ---------- 鱼价 / 鱼护 / 出售 ----------
+  S.price = (f) => {
+    const sp = speciesById[f.id]; const avg = (sp.w[0] + sp.w[1]) / 2;
+    return Math.max(1, Math.round(sp.price * Math.pow(f.w / avg, 0.85) * (f.perfect ? 1.1 : 1)));
+  };
+  S.netFull = () => save.net.length >= S.netCap();
+  S.keepFish = (f) => { if (S.netFull()) return false; save.net.push(f); S.persist(); return true; };
+  S.sell = (uids) => {
+    let total = 0;
+    save.net = save.net.filter(f => { if (uids.includes(f.uid)) { total += S.price(f); return false; } return true; });
+    S.sellCoins(total); return total;
+  };
+  S.sellCoins = (total) => {
+    if (!total) return;
+    save.coins += total; save.stats.sold += total;
+    S.progress('sell_coins', total); S.persist();
+  };
+  S.toggleKeep = (uid) => { const f = save.net.find(f => f.uid === uid); if (f) { f.keep = !f.keep; S.persist(); } };
+
+  // ---------- 选鱼 ----------
+  S.pickFish = (mode, power) => {
+    const base = RARITY_BASE[mode];
+    const mod = mode === 'lure' ? S.lure() : S.bait();
+    const rarMul = { common: 1.15 - power * 0.45, rare: 1 + power * 0.3, epic: 1 + power * 0.9, legend: 1 + power * 1.6 };
+    const pool = SPECIES.filter(s => s.method === mode || s.method === 'both');
+    const counts = {}; pool.forEach(s => counts[s.rarity] = (counts[s.rarity] || 0) + 1);
+    const weights = pool.map(s => base[s.rarity] / counts[s.rarity] * rarMul[s.rarity] * (mod.rar[s.rarity] || 1) * (mod.attract[s.id] || 1));
+    let r = Math.random() * weights.reduce((a, b) => a + b, 0), sp = pool[0];
+    for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) { sp = pool[i]; break; } }
+    const wf = Math.pow(Math.random(), 2.2);
+    return { sp, weight: sp.w[0] + (sp.w[1] - sp.w[0]) * wf, wf };
+  };
+
+  // ---------- 渔获登记 ----------
+  S.recordCatch = (sp, weight, { mode, perfect }) => {
+    const prev = save.collection[sp.id];
+    const isNew = !prev, isRecord = !!prev && weight > prev.maxW;
+    save.collection[sp.id] = { count: (prev?.count || 0) + 1, maxW: Math.max(prev?.maxW || 0, weight) };
+    save.catches++;
+    save.stats.maxW = Math.max(save.stats.maxW, weight);
+    if (mode === 'lure') save.stats.lure++;
+    if (sp.rarity !== 'common') save.stats.rareUp++;
+    if (sp.rarity === 'legend') save.stats.legend++;
+    const fish = { uid: save.uidSeq++, id: sp.id, w: Math.round(weight * 100) / 100, perfect: !!perfect, keep: false, t: Date.now() };
+    const value = S.price(fish);
+    const bonus = Math.max(1, Math.round(value * 0.1));          // 小额渔获奖励
+    save.coins += bonus;
+    const xp = Math.round((4 + sp.price * 0.25) * (perfect ? 1.3 : 1));
+    S.progress('catch', { sp, weight, mode });
+    S.addXp(xp);
+    S.persist();
+    return { fish, value, bonus, xp, isNew, isRecord };
+  };
+  S.notePerfect = () => { save.stats.perfect++; S.progress('perfect', 1); S.persist(); };
+
+  // ---------- 任务 ----------
+  const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  function seeded(str) { let h = 2166136261; for (const c of str) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return () => { h += 0x6D2B79F5; let t = h; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  S.ensureDaily = () => {
+    const date = today();
+    if (save.daily && save.daily.date === date) return false;
+    const rnd = seeded('fish' + date);
+    const tpls = [...DAILY_TEMPLATES].sort(() => rnd() - 0.5);
+    const quests = [];
+    for (const t of tpls) {
+      if (quests.length >= 3) break;
+      if (t.type === 'lure_catch' && !S.canLure() && quests.length < 2) continue;  // 还没有露亚竿时尽量不抽露亚任务
+      const tierIdx = Math.min(t.tiers.length - 1, Math.floor(rnd() * t.tiers.length));
+      const [target, reward] = t.tiers[tierIdx];
+      let param = null;
+      if (t.type === 'catch_species') {
+        const pool = SPECIES.filter(s => s.rarity === 'common' && s.method !== 'lure').concat(S.canLure() ? [] : []);
+        param = pool[Math.floor(rnd() * pool.length)].id;
+      }
+      quests.push({ type: t.type, target, param, reward, progress: 0, claimed: false, text: t.text(target, param ? speciesById[param].name : '') });
+    }
+    save.daily = { date, quests }; S.persist();
+    return true;
+  };
+  S.progress = (type, v) => {
+    if (!save.daily) return;
+    for (const q of save.daily.quests) {
+      if (q.claimed || q.progress >= q.target) continue;
+      const before = q.progress;
+      if (type === 'catch') {
+        const { sp, weight, mode } = v;
+        if (q.type === 'catch_n') q.progress++;
+        if (q.type === 'catch_species' && sp.id === q.param) q.progress++;
+        if (q.type === 'catch_weight' && weight >= q.target) q.progress = q.target;
+        if (q.type === 'lure_catch' && mode === 'lure') q.progress++;
+        if (q.type === 'rare_catch' && sp.rarity !== 'common') q.progress++;
+      } else if (type === q.type) q.progress += v;
+      q.progress = Math.min(q.progress, q.target);
+      if (before < q.target && q.progress >= q.target) emit('questDone', q.text);
+    }
+  };
+  S.mainValue = (q) => {
+    switch (q.type) {
+      case 'catch_n': return save.catches;
+      case 'lure_catch': return save.stats.lure;
+      case 'sell_coins': return save.stats.sold;
+      case 'perfect': return save.stats.perfect;
+      case 'species': return Object.keys(save.collection).length;
+      case 'level': return S.level();
+      case 'max_weight': return save.stats.maxW;
+      case 'legend': return save.stats.legend;
+    }
+    return 0;
+  };
+  S.claimDaily = (i) => {
+    const q = save.daily.quests[i]; if (!q || q.claimed || q.progress < q.target) return null;
+    q.claimed = true; return S.grant(q.reward);
+  };
+  S.claimMain = (id) => {
+    const q = MAIN_QUESTS.find(q => q.id === id);
+    if (!q || save.mainClaimed[id] || S.mainValue(q) < q.target) return null;
+    save.mainClaimed[id] = true; return S.grant(q.reward);
+  };
+  S.claimableCount = () =>
+    (save.daily ? save.daily.quests.filter(q => !q.claimed && q.progress >= q.target).length : 0) +
+    MAIN_QUESTS.filter(q => !save.mainClaimed[q.id] && S.mainValue(q) >= q.target).length;
+  return S;
+}
