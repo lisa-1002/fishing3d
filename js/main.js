@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { createWorld, DECK_Y, DOCK_END_Z } from './world.js';
 import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails } from './fish.js';
+import { preloadHeroAssets } from './fish-hero-carp.js';
 import { RODS, LURES, BAITS } from './data.js';
 import { loadSave } from './save.js';
 import { createSystems } from './systems.js';
@@ -12,8 +13,8 @@ import { clamp, lerp, rand } from './util.js';
 const isMobile = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
 const quality = localStorage.getItem('fishing3d_quality') || (isMobile ? 'low' : 'high');
 const Q = quality === 'high'
-  ? { pr: Math.min(devicePixelRatio, 2), shadow: 2048, waterRes: 1024, terrainSeg: 256, trees: 1400, reeds: 2200, aa: true }
-  : { pr: Math.min(devicePixelRatio, 1.25), shadow: 1024, waterRes: 256, terrainSeg: 128, trees: 450, reeds: 700, aa: false };
+  ? { pr: Math.min(devicePixelRatio, 2), shadow: 2048, waterRes: 1024, terrainSeg: 192, trees: 1100, reeds: 1800, aa: true }
+  : { pr: Math.min(devicePixelRatio, 1.25), shadow: 1024, waterRes: 256, terrainSeg: 96, trees: 280, reeds: 500, aa: false };
 
 // ---------------- 存档 & 系统 ----------------
 const { save, migrated } = loadSave();
@@ -44,6 +45,8 @@ const CAM_POS = new THREE.Vector3(0, DECK_Y + 1.65, DOCK_END_Z + 3.0);
 camera.position.copy(CAM_POS);
 scene.add(camera);
 const world = createWorld(scene, renderer, Q);
+// 可选：放置 vendor/fish/carp.glb 后自动启用
+preloadHeroAssets().catch(() => {});
 
 // ---------------- 鱼竿（可换外观、分段弯曲） ----------------
 const rodRig = new THREE.Group();
@@ -310,11 +313,28 @@ function landFish() {
   // 英雄鱼：补一盏近距轮廓光，突出鳞片湿润高光
   if (hero) {
     if (G.catchLight) { camera.remove(G.catchLight); G.catchLight.dispose?.(); }
-    const rim = new THREE.PointLight(0xffe0b0, 1.6, 3.5, 1.5);
+    const rim = new THREE.PointLight(0xffe0b0, 1.8, 3.5, 1.5);
     rim.position.set(-0.35, 0.35, -0.4);
-    const fill = new THREE.PointLight(0xa0c8ff, 0.55, 3.5, 1.5);
+    const fill = new THREE.PointLight(0xa0c8ff, 0.6, 3.5, 1.5);
     fill.position.set(0.5, -0.1, -0.6);
-    const wrap = new THREE.Group(); wrap.add(rim, fill); camera.add(wrap);
+    const wrap = new THREE.Group(); wrap.add(rim, fill);
+    // 水珠 / 高光微粒
+    const N = 28;
+    const g = new THREE.BufferGeometry();
+    const pos = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) {
+      pos[i*3] = (Math.random()-0.5)*0.55;
+      pos[i*3+1] = (Math.random()-0.3)*0.35;
+      pos[i*3+2] = -0.7 + (Math.random()-0.5)*0.35;
+    }
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const drip = new THREE.Points(g, new THREE.PointsMaterial({
+      color: 0xe8f4ff, size: 0.018, transparent: true, opacity: 0.75,
+      depthWrite: false, sizeAttenuation: true,
+    }));
+    drip.userData.vel = Float32Array.from({length:N}, () => -0.08 - Math.random()*0.18);
+    wrap.add(drip); wrap.userData.drip = drip;
+    camera.add(wrap);
     G.catchLight = wrap;
   }
   const R = RARITY[sp.rarity], c = ui.card;
@@ -517,7 +537,7 @@ const tmpV = new THREE.Vector3();
 function tick() {
   const dt = Math.min(clock.getDelta(), 0.05), time = clock.elapsedTime;
   G.t += dt;
-  world.update(dt, time);
+  world.update(dt, time, camera);
   const s = G.state, f = forward();
   if (keys.KeyA || keys.ArrowLeft) G.aim = clamp(G.aim + dt * 0.6, -0.6, 0.6);
   if (keys.KeyD || keys.ArrowRight) G.aim = clamp(G.aim - dt * 0.6, -0.6, 0.6);
@@ -670,6 +690,21 @@ function tick() {
       const fp = new THREE.Vector3(); G.catchModel.getWorldPosition(fp);
       tackle.position.lerp(fp.add(new THREE.Vector3(0, 0.25, 0)), dt * 6); tackle.scale.setScalar(1);
     }
+    if (G.catchLight?.userData?.drip) {
+      const drip = G.catchLight.userData.drip;
+      const arr = drip.geometry.attributes.position.array;
+      const vel = drip.userData.vel;
+      for (let i = 0; i < vel.length; i++) {
+        arr[i*3+1] += vel[i] * dt;
+        if (arr[i*3+1] < -0.35) {
+          arr[i*3+1] = 0.25 + Math.random()*0.2;
+          arr[i*3] = (Math.random()-0.5)*0.5;
+          arr[i*3+2] = -0.7 + (Math.random()-0.5)*0.3;
+        }
+      }
+      drip.geometry.attributes.position.needsUpdate = true;
+      drip.material.opacity = 0.55 + Math.sin(time * 3) * 0.15;
+    }
     sag = 0.02;
   }
   updateLine(sag);
@@ -704,14 +739,20 @@ UI.refreshHud();
 setState('idle');
 requestAnimationFrame(tick);
 setTimeout(() => {
-  try { thumbs = makeThumbnails(); } catch (e) { console.warn('缩略图生成失败', e); }
   document.body.classList.add('ready');
   const sb = $('startBtn'); sb.disabled = false; sb.textContent = save.catches ? '继续钓鱼' : '开始钓鱼';
-}, 50);
+}, 30);
+function genThumbsLater() {
+  if (location.search.includes('nothumbs')) return;
+  const run = () => { try { thumbs = makeThumbnails(); } catch (e) { console.warn('缩略图生成失败', e); } };
+  if (window.requestIdleCallback) requestIdleCallback(run, { timeout: 15000 });
+  else setTimeout(run, 10000);
+}
 $('startBtn').addEventListener('click', () => {
   started = true; $('start').classList.add('hide');
   if (migrated) UI.toast('已从旧版本迁移存档，欢迎回来！', 2600);
   else if (!save.catches) UI.toast('新手提示：先用台钓钓 3 条鱼，完成主线可获得露亚竿', 3200);
+  setTimeout(genThumbsLater, 4000);
 });
 // 调试 / 自动化测试接口
 window.__game = { G, save, S, UI, startCast, onPress, onRelease, hookFish, landFish, setState, closeCard, twitch, speciesById, buildFish, SPECIES };

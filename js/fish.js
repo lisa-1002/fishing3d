@@ -583,6 +583,8 @@ export function buildFish(sp, seed = Math.random() * 100) {
 
 // ---------- 图鉴缩略图 ----------
 export function makeThumbnails() {
+  const prevQ = localStorage.getItem('fishing3d_quality');
+  localStorage.setItem('fishing3d_quality', 'low'); // 缩略图用低清英雄贴图
   const W = 280, Hh = 168;
   const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
   r.setSize(W, Hh); r.setPixelRatio(1);
@@ -612,5 +614,7 @@ export function makeThumbnails() {
     scene.remove(f); f.userData.dispose();
   }
   pm.dispose(); r.dispose(); r.forceContextLoss();
+  if (prevQ == null) localStorage.removeItem('fishing3d_quality');
+  else localStorage.setItem('fishing3d_quality', prevQ);
   return out;
 }
