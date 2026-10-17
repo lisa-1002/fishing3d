@@ -3,6 +3,12 @@
 一款基于 **Three.js** 的 3D 写实风格钓鱼网页游戏（在线试玩：https://lisa-1002.github.io/fishing3d/ ），手机（触屏）和电脑（鼠标/键盘）都能玩。纯静态站点，无需构建，Three.js 已本地化放在 `vendor/`，国内离线环境也能运行。
 
 
+
+## 2026-10-17 视觉双通道
+- **英雄鲤**（鲤鱼 / 黄金鲤 / 锦鲤王）：`js/fish-hero-carp.js` 高规格程序化 PBR（不规则叠鳞、吻部平滑层、口须、鳃盖、角膜、半透鳍、捕捞轮廓光+水珠）。可选 `vendor/fish/carp.glb`（见该目录 README）。
+- **场景**：`js/world.js` 地表细节贴图（草/土/岩 bump+roughness）、远山剪影环、大气霾、树皮+簇叶体针叶/阔叶、软边远距广告牌、近岸灌木；低画质自动减树/减段数。
+- 截图：`screenshot_hero_*.png`、`screenshot_world_v2_*.png`
+- 未推送 GitHub；部署请上传 `fishing3d-dist/` 或 `fishing3d-site.zip`。
 ## 〇、v2 更新内容
 
 v1 玩家反馈“玩法单调”，v2 在保留写实画面和核心循环的基础上，新增了完整的养成与双钓法玩法：
