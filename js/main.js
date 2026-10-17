@@ -301,7 +301,7 @@ function landFish() {
   const m = buildFish(sp);
   m.scale.setScalar(sp.id === 'sturgeon' || sp.id === 'gancyu' ? 0.72 : 0.5);
   m.position.set(0, innerWidth < innerHeight ? 0.12 : 0.07, -1.05);
-  m.userData.uniforms.uAmp.value = 0.12; m.userData.uniforms.uSpeed.value = 11;
+  m.userData.uniforms.uAmp.value = 0.08; m.userData.uniforms.uSpeed.value = 7.5;
   camera.add(m); G.catchModel = m;
   const R = RARITY[sp.rarity], c = ui.card;
   c.style.setProperty('--rc', R.color);
@@ -466,10 +466,27 @@ function updateFight(dt, time, f) {
   // 跃水动画
   if (e === 'jump' && G.jumpModel) {
     const k = G.evt.t / G.evt.dur, m = G.jumpModel, L = m.scale.x;
-    m.position.set(tackle.position.x, Math.sin(k * Math.PI) * (0.5 + L * 0.9) - 0.1, tackle.position.z);
-    m.rotation.set(0, Math.atan2(f.x, f.z) + Math.PI / 2, (0.5 - k) * 2.2);
-    m.userData.uniforms.uTime.value += dt; m.userData.uniforms.uAmp.value = 0.14; m.userData.uniforms.uSpeed.value = 16;
-    if (k > 0.92 && !G.evt.splashed) { G.evt.splashed = true; spawnSplash(tackle.position, 40, 1.2); spawnRipple(tackle.position, 1.5); }
+    // 真实跃水：抛物线升高 + 入水前鼻尖下压，身体S形扭动
+    const height = Math.sin(k * Math.PI) * (0.55 + L * 1.1);
+    const forwardJump = Math.sin(k * Math.PI) * 0.35;
+    const dir = f.clone().normalize();
+    m.position.set(
+      tackle.position.x + dir.x * forwardJump,
+      height - 0.05,
+      tackle.position.z + dir.z * forwardJump
+    );
+    // pitch：出水抬头 → 顶点水平 → 入水扎头
+    const pitch = (0.5 - k) * 2.6;
+    const yaw = Math.atan2(dir.x, dir.z) + Math.PI / 2 + Math.sin(k * Math.PI * 2) * 0.25;
+    const roll = Math.sin(k * Math.PI * 3) * 0.45;
+    m.rotation.set(pitch, yaw, roll);
+    const u = m.userData.uniforms;
+    u.uTime.value += dt;
+    u.uAmp.value = 0.18;
+    u.uSpeed.value = 18;
+    u.uLeap.value = Math.sin(k * Math.PI); // 弓背
+    if (k > 0.08 && k < 0.2 && !G.evt.splashOut) { G.evt.splashOut = true; spawnSplash(tackle.position, 50, 1.4); spawnRipple(tackle.position, 1.6); }
+    if (k > 0.88 && !G.evt.splashed) { G.evt.splashed = true; spawnSplash(m.position, 55, 1.5); spawnRipple(m.position, 1.8); u.uLeap.value = 0; }
   }
   if (G.overT > 0.35) { G.shake = 1.5; if (navigator.vibrate) navigator.vibrate(120); startReturn('线断了！张力过大（升级鱼线可提高上限）'); return 0; }
   if (e === 'jump' && G.evt.slack > 0.35) { startReturn('鱼跃水甩钩了！跃水时要保持张力'); return 0; }
@@ -628,9 +645,11 @@ function tick() {
     rod.pitch = lerp(rod.pitch, ROD_REST + 0.35, dt * 4); rod.bend = lerp(rod.bend, 0.4, dt * 4); updateRod();
     if (G.catchModel) {
       const u = G.catchModel.userData.uniforms; u.uTime.value += dt;
-      u.uAmp.value = lerp(u.uAmp.value, 0.05, dt * 0.5);
-      G.catchModel.rotation.y = Math.sin(time * 0.8) * 0.5;
-      G.catchModel.rotation.z = Math.sin(time * 1.3) * 0.08;
+      u.uAmp.value = lerp(u.uAmp.value, 0.045, dt * 0.4);
+      u.uSpeed.value = lerp(u.uSpeed.value, 6.5, dt * 0.5);
+      G.catchModel.rotation.y = Math.sin(time * 0.7) * 0.55;
+      G.catchModel.rotation.x = Math.sin(time * 0.9) * 0.06;
+      G.catchModel.rotation.z = Math.sin(time * 1.1) * 0.1;
       const fp = new THREE.Vector3(); G.catchModel.getWorldPosition(fp);
       tackle.position.lerp(fp.add(new THREE.Vector3(0, 0.25, 0)), dt * 6); tackle.scale.setScalar(1);
     }
@@ -678,4 +697,4 @@ $('startBtn').addEventListener('click', () => {
   else if (!save.catches) UI.toast('新手提示：先用台钓钓 3 条鱼，完成主线可获得露亚竿', 3200);
 });
 // 调试 / 自动化测试接口
-window.__game = { G, save, S, UI, startCast, onPress, onRelease, hookFish, landFish, setState, closeCard, twitch };
+window.__game = { G, save, S, UI, startCast, onPress, onRelease, hookFish, landFish, setState, closeCard, twitch, speciesById, buildFish, SPECIES };
