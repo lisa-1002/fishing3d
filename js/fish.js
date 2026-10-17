@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from '../vendor/addons/RoomEnvironment.js';
 import { vnoise, hash, smooth } from './util.js';
+import { buildHeroCarp, isHeroSpecies, heroVariantFor } from './fish-hero-carp.js';
 
 export const RARITY = {
   common: { name: '普通', color: '#d5dde2', weight: 62 },
@@ -334,6 +335,7 @@ function addSwim(mat, uniforms, isFin = false) {
 
 // ---------- 构建鱼 ----------
 export function buildFish(sp, seed = Math.random() * 100) {
+  if (isHeroSpecies(sp.id)) return buildHeroCarp(heroVariantFor(sp.id), seed);
   const uniforms = {
     uTime: { value: 0 },
     uAmp: { value: 0.055 },
