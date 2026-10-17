@@ -229,7 +229,7 @@ const G = {
   lp: new THREE.Vector3(), speed: 0, attract: 0, twitches: [], follower: null, wakeT: 0, strikeChanceT: 0,
   // 搏鱼
   tension: 0.4, progress: 0, slackT: 0, overT: 0, evt: null, evtT: 2, jumpModel: null, jumpT: 0,
-  retrieveFrom: new THREE.Vector3(), retrieveT: 0, shake: 0, catchModel: null, catchInfo: null, pitch: -0.1,
+  retrieveFrom: new THREE.Vector3(), retrieveT: 0, shake: 0, catchModel: null, catchLight: null, catchInfo: null, pitch: -0.1,
 };
 const HINT = {
   idle: () => save.equip.mode === 'lure'
@@ -299,10 +299,24 @@ function landFish() {
   if (G.jumpModel) { scene.remove(G.jumpModel); G.jumpModel.userData.dispose(); G.jumpModel = null; }
   spawnSplash(tackle.position, 60, 1.3); spawnRipple(tackle.position, 1.5);
   const m = buildFish(sp);
-  m.scale.setScalar(sp.id === 'sturgeon' || sp.id === 'gancyu' ? 0.72 : 0.5);
-  m.position.set(0, innerWidth < innerHeight ? 0.12 : 0.07, -1.05);
-  m.userData.uniforms.uAmp.value = 0.08; m.userData.uniforms.uSpeed.value = 7.5;
+  const hero = !!m.userData.isHeroCarp;
+  m.scale.setScalar(sp.id === 'sturgeon' || sp.id === 'gancyu' ? 0.72 : (hero ? 0.62 : 0.5));
+  m.position.set(0, innerWidth < innerHeight ? 0.14 : 0.08, hero ? -0.95 : -1.05);
+  m.rotation.y = hero ? -0.55 : 0;
+  m.userData.uniforms.uAmp.value = hero ? 0.055 : 0.08;
+  m.userData.uniforms.uSpeed.value = hero ? 5.8 : 7.5;
+  if (m.userData.uniforms.uFin) m.userData.uniforms.uFin.value = 1;
   camera.add(m); G.catchModel = m;
+  // 英雄鱼：补一盏近距轮廓光，突出鳞片湿润高光
+  if (hero) {
+    if (G.catchLight) { camera.remove(G.catchLight); G.catchLight.dispose?.(); }
+    const rim = new THREE.PointLight(0xffe0b0, 1.6, 3.5, 1.5);
+    rim.position.set(-0.35, 0.35, -0.4);
+    const fill = new THREE.PointLight(0xa0c8ff, 0.55, 3.5, 1.5);
+    fill.position.set(0.5, -0.1, -0.6);
+    const wrap = new THREE.Group(); wrap.add(rim, fill); camera.add(wrap);
+    G.catchLight = wrap;
+  }
   const R = RARITY[sp.rarity], c = ui.card;
   c.style.setProperty('--rc', R.color);
   c.querySelector('.c-rar').textContent = R.name;
@@ -329,6 +343,7 @@ function closeCard(action) {
   if (action === 'release') { S.addXp(3); S.persist(); UI.toast('放生了，功德 +1（经验 +3）'); }
   ui.card.classList.remove('show');
   if (G.catchModel) { camera.remove(G.catchModel); G.catchModel.userData.dispose(); G.catchModel = null; }
+  if (G.catchLight) { camera.remove(G.catchLight); G.catchLight = null; }
   G.fish = null; G.catchInfo = null;
   UI.refreshHud();
   setState('idle');
@@ -645,9 +660,11 @@ function tick() {
     rod.pitch = lerp(rod.pitch, ROD_REST + 0.35, dt * 4); rod.bend = lerp(rod.bend, 0.4, dt * 4); updateRod();
     if (G.catchModel) {
       const u = G.catchModel.userData.uniforms; u.uTime.value += dt;
-      u.uAmp.value = lerp(u.uAmp.value, 0.045, dt * 0.4);
-      u.uSpeed.value = lerp(u.uSpeed.value, 6.5, dt * 0.5);
-      G.catchModel.rotation.y = Math.sin(time * 0.7) * 0.55;
+      u.uAmp.value = lerp(u.uAmp.value, G.catchModel.userData.isHeroCarp ? 0.04 : 0.045, dt * 0.4);
+      u.uSpeed.value = lerp(u.uSpeed.value, G.catchModel.userData.isHeroCarp ? 5.5 : 6.5, dt * 0.5);
+      if (u.uFin) u.uFin.value = 1;
+      const baseY = G.catchModel.userData.isHeroCarp ? -0.55 : 0;
+      G.catchModel.rotation.y = baseY + Math.sin(time * 0.65) * (G.catchModel.userData.isHeroCarp ? 0.35 : 0.55);
       G.catchModel.rotation.x = Math.sin(time * 0.9) * 0.06;
       G.catchModel.rotation.z = Math.sin(time * 1.1) * 0.1;
       const fp = new THREE.Vector3(); G.catchModel.getWorldPosition(fp);
