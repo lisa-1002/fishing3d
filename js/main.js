@@ -1,6 +1,7 @@
 // 静湖垂钓 3D v2 —— 渲染、输入、台钓/露亚双玩法状态机
 import * as THREE from 'three';
 import { createWorld, DECK_Y, DOCK_END_Z } from './world.js';
+import { locationById } from './locations.js';
 import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails } from './fish.js';
 import { preloadHeroAssets } from './fish-hero-carp.js';
 import { RODS, LURES, BAITS } from './data.js';
@@ -45,6 +46,11 @@ const CAM_POS = new THREE.Vector3(0, DECK_Y + 1.65, DOCK_END_Z + 3.0);
 camera.position.copy(CAM_POS);
 scene.add(camera);
 const world = createWorld(scene, renderer, Q);
+function applyCurrentLocation() {
+  const loc = locationById[save.location] || locationById.lake;
+  world.applyTheme(loc.theme, renderer);
+}
+applyCurrentLocation();
 // 可选：放置 vendor/fish/carp.glb 后自动启用
 preloadHeroAssets().catch(() => {});
 
@@ -213,7 +219,7 @@ function updateFx(dt) {
 // ---------------- UI ----------------
 const $ = id => document.getElementById(id);
 let thumbs = {};
-UI = createUI(save, S, { thumbs: () => thumbs, canOpenPanel: () => G.state === 'idle', coinFx: () => { $('coinChip').classList.remove('pop'); void $('coinChip').offsetWidth; $('coinChip').classList.add('pop'); } });
+UI = createUI(save, S, { thumbs: () => thumbs, canOpenPanel: () => G.state === 'idle', coinFx: () => { $('coinChip').classList.remove('pop'); void $('coinChip').offsetWidth; $('coinChip').classList.add('pop'); }, onLocationChange: () => { applyCurrentLocation(); UI.refreshHud(); } });
 const ui = {
   hint: $('hint'), power: $('powerWrap'), powerFill: $('powerFill'),
   reel: $('reelWrap'), tension: $('tensionFill'), progress: $('progressFill'), reelMsg: $('reelMsg'),
@@ -424,7 +430,7 @@ addEventListener('contextmenu', e => e.preventDefault());
 $('cardKeep').addEventListener('click', () => closeCard('keep'));
 $('cardSell').addEventListener('click', () => closeCard('sell'));
 $('cardRelease').addEventListener('click', () => closeCard('release'));
-for (const [btn, name] of [['netBtn', 'net'], ['shopBtn', 'shop'], ['questBtn', 'quest'], ['equipBtn', 'equip'], ['dexBtn', 'dex']])
+for (const [btn, name] of [['netBtn', 'net'], ['shopBtn', 'shop'], ['questBtn', 'quest'], ['equipBtn', 'equip'], ['mapBtn', 'map'], ['dexBtn', 'dex']])
   $(btn).addEventListener('click', () => UI.open(name));
 $('modeBtn').addEventListener('click', () => {
   if (G.state !== 'idle') { UI.toast('请先完成当前这一竿'); return; }
@@ -574,7 +580,7 @@ function tick() {
       tackle.rotation.set(0, Math.atan2(f.x, f.z) + Math.PI / 2, 0);
       spawnSplash(G.castTo, 30, 0.9); spawnRipple(G.castTo, 1.2);
       if (G.mode === 'float') {
-        G.waitT = rand(3, 8) * BAITS[G.baitUsed || 'none'].wait; G.nibbleT = rand(0.8, 2); G.nibbling = 0; G.dip = 0;
+        G.waitT = rand(3, 8) * BAITS[G.baitUsed || 'none'].wait * (S.location().waitMul || 1); G.nibbleT = rand(0.8, 2); G.nibbling = 0; G.dip = 0;
         setState('waiting');
       } else {
         G.lp.copy(G.castTo); G.speed = 0; G.attract = 0.05; G.twitches = []; G.follower = null; G.holding = false;
@@ -598,7 +604,7 @@ function tick() {
         G.fish = S.pickFish('float', G.castPower);
         const sens = S.rod().sens;
         G.perfectWin = 0.32 * sens;
-        G.biteWindow = G.perfectWin + (1.15 - G.fish.sp.diff * 0.06) * sens;
+        G.biteWindow = (G.perfectWin + (1.15 - G.fish.sp.diff * 0.06) * sens) * (S.location().biteWin || 1);
         spawnSplash(tackle.position, 14, 0.5); spawnRipple(tackle.position, 1.1, 1.2);
         if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
         setState('bite');
@@ -642,7 +648,7 @@ function tick() {
         else if (Math.random() < dt * G.attract * G.attract * 1.6) {
           G.fish = G.follower.fish; G.follower = null; followShadow.visible = false;
           const sens = S.rod().sens;
-          G.perfectWin = 0.3 * sens; G.biteWindow = G.perfectWin + (0.75 - G.fish.sp.diff * 0.04) * sens;
+          G.perfectWin = 0.3 * sens; G.biteWindow = (G.perfectWin + (0.75 - G.fish.sp.diff * 0.04) * sens) * (S.location().biteWin || 1);
           spawnSplash(G.lp, 45, 1.2); spawnRipple(G.lp, 1.4, 1.2);
           ui.bite.textContent = '咬饵了！点击刺鱼！'; ui.bite.classList.add('show');
           if (navigator.vibrate) navigator.vibrate([80, 30, 80]);
@@ -755,4 +761,4 @@ $('startBtn').addEventListener('click', () => {
   setTimeout(genThumbsLater, 4000);
 });
 // 调试 / 自动化测试接口
-window.__game = { G, save, S, UI, startCast, onPress, onRelease, hookFish, landFish, setState, closeCard, twitch, speciesById, buildFish, SPECIES };
+window.__game = { G, save, S, UI, startCast, onPress, onRelease, hookFish, landFish, setState, closeCard, twitch, speciesById, buildFish, SPECIES, applyCurrentLocation };

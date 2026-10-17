@@ -1,6 +1,7 @@
 // 界面：HUD、鱼护、商店、任务、装备、图鉴
 import { SPECIES, RARITY, speciesById } from './fish.js';
 import { RODS, LINES, NETS, BAITS, LURES, MAIN_QUESTS, MAX_LEVEL, LEVEL_XP } from './data.js';
+import { LOCATIONS, canAffordUnlock } from './locations.js';
 
 const $ = id => document.getElementById(id);
 const fmtW = w => (w >= 10 ? w.toFixed(1) : w.toFixed(2)) + 'kg';
@@ -30,6 +31,8 @@ export function createUI(save, S, ctx) {
     $('gearInfo').textContent = save.equip.mode === 'lure'
       ? `${rod.name} · ${S.lure().name}`
       : `${rod.name} · ${S.bait().name}${S.baitId() !== 'none' ? '×' + save.bait[S.baitId()] : ''}`;
+    const loc = S.location();
+    const li = $('locInfo'); if (li) li.textContent = `📍 ${loc.name}`;
     if (current) UI.render();
   };
 
@@ -55,6 +58,7 @@ export function createUI(save, S, ctx) {
     if (current === 'net') renderNet();
     else if (current === 'shop') renderShop();
     else if (current === 'quest') renderQuests();
+    else if (current === 'map') renderMap();
     else if (current === 'equip') renderEquip();
     else if (current === 'dex') renderDex();
   };
@@ -161,6 +165,31 @@ export function createUI(save, S, ctx) {
     pBody.innerHTML = h;
   }
 
+  // ---------- 钓点 ----------
+  function renderMap() {
+    pTitle.innerHTML = '选择钓点';
+    tabs([]);
+    const lvl = S.level();
+    pBody.innerHTML = `<div class="sec">抛竿途中无法切换钓点</div><div class="mapGrid">` + LOCATIONS.map(loc => {
+      const owned = !!save.unlockedLocations[loc.id];
+      const cur = save.location === loc.id;
+      const chk = canAffordUnlock(loc, lvl, save.coins, save.unlockedLocations);
+      let act = '';
+      if (cur) act = `<span class="meta">当前钓点</span>`;
+      else if (owned) act = `<button data-act="travel" data-id="${loc.id}" class="primary">前往</button>`;
+      else if (chk.ok) act = `<button data-act="unlockLoc" data-id="${loc.id}" class="gold">解锁${loc.unlock.coins ? ` · ${loc.unlock.coins} 金币` : '（免费）'}</button>`;
+      else act = `<span class="meta">🔒 ${chk.reason}${loc.unlock.coins ? ` · 另需 ${loc.unlock.coins} 金币` : ''}</span>`;
+      return `<div class="mapCard ${cur ? 'on' : ''} ${owned ? '' : 'locked'}">
+        <span class="tag">${loc.tag}</span>
+        <div><b>${loc.name}</b></div>
+        <div class="desc">${loc.desc}</div>
+        <div class="meta">解锁：Lv.${loc.unlock.lvl}${loc.unlock.coins ? ` + ${loc.unlock.coins} 金币` : ''}</div>
+        <div class="act">${act}</div>
+      </div>`;
+    }).join('') + '</div>';
+    pFoot.innerHTML = '';
+  }
+
   // ---------- 图鉴 ----------
   function renderDex() {
     const caught = SPECIES.filter(s => save.collection[s.id]).length;
@@ -190,6 +219,16 @@ export function createUI(save, S, ctx) {
     if (act === 'equip') {
       if (kind === 'mode') { if (!S.setMode(id)) UI.toast('还没有露亚竿'); }
       else S.equip(kind, id);
+    }
+    if (act === 'unlockLoc') {
+      const err = S.unlockLocation(id);
+      if (err) UI.toast(err);
+      else { UI.toast(`已解锁并前往「${S.location().name}」`); ctx.onLocationChange && ctx.onLocationChange(); UI.close(); }
+    }
+    if (act === 'travel') {
+      const err = S.setLocation(id);
+      if (err) UI.toast(err);
+      else { UI.toast(`已抵达「${S.location().name}」`); ctx.onLocationChange && ctx.onLocationChange(); UI.close(); }
     }
     UI.refreshHud();
   });

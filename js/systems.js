@@ -2,6 +2,7 @@
 import { SPECIES, RARITY, speciesById } from './fish.js';
 import { RODS, LINES, NETS, BAITS, LURES, RARITY_BASE, LEVEL_XP, MAX_LEVEL, DAILY_TEMPLATES, MAIN_QUESTS } from './data.js';
 import { writeSave } from './save.js';
+import { LOCATIONS, locationById, canAffordUnlock } from './locations.js';
 
 export function createSystems(save, hooks = {}) {
   const S = {};
@@ -108,13 +109,37 @@ export function createSystems(save, hooks = {}) {
   S.toggleKeep = (uid) => { const f = save.net.find(f => f.uid === uid); if (f) { f.keep = !f.keep; S.persist(); } };
 
   // ---------- 选鱼 ----------
+  S.location = () => locationById[save.location] || LOCATIONS[0];
+  S.unlockedCount = () => Object.keys(save.unlockedLocations || {}).filter(k => save.unlockedLocations[k]).length;
+  S.unlockLocation = (id) => {
+    const loc = locationById[id]; if (!loc) return '未知钓点';
+    if (save.unlockedLocations[id]) { save.location = id; S.persist(); return null; }
+    const chk = canAffordUnlock(loc, S.level(), save.coins, save.unlockedLocations);
+    if (!chk.ok) return chk.reason;
+    if (loc.unlock.coins > 0) {
+      if (save.coins < loc.unlock.coins) return `需 ${loc.unlock.coins} 金币`;
+      save.coins -= loc.unlock.coins;
+    }
+    save.unlockedLocations[id] = true;
+    save.location = id;
+    S.persist();
+    return null;
+  };
+  S.setLocation = (id) => {
+    if (!save.unlockedLocations[id]) return '尚未解锁';
+    save.location = id; S.persist(); return null;
+  };
   S.pickFish = (mode, power) => {
     const base = RARITY_BASE[mode];
     const mod = mode === 'lure' ? S.lure() : S.bait();
+    const loc = S.location();
     const rarMul = { common: 1.15 - power * 0.45, rare: 1 + power * 0.3, epic: 1 + power * 0.9, legend: 1 + power * 1.6 };
-    const pool = SPECIES.filter(s => s.method === mode || s.method === 'both');
+    const pool = SPECIES.filter(s => (s.method === mode || s.method === 'both') && (loc.weights[s.id] === undefined || loc.weights[s.id] > 0));
     const counts = {}; pool.forEach(s => counts[s.rarity] = (counts[s.rarity] || 0) + 1);
-    const weights = pool.map(s => base[s.rarity] / counts[s.rarity] * rarMul[s.rarity] * (mod.rar[s.rarity] || 1) * (mod.attract[s.id] || 1));
+    const weights = pool.map(s => {
+      const lw = loc.weights[s.id] !== undefined ? loc.weights[s.id] : 0.35; // 未点名的鱼少量出现
+      return base[s.rarity] / counts[s.rarity] * rarMul[s.rarity] * (mod.rar[s.rarity] || 1) * (mod.attract[s.id] || 1) * lw;
+    });
     let r = Math.random() * weights.reduce((a, b) => a + b, 0), sp = pool[0];
     for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) { sp = pool[i]; break; } }
     const wf = Math.pow(Math.random(), 2.2);
@@ -194,6 +219,7 @@ export function createSystems(save, hooks = {}) {
       case 'level': return S.level();
       case 'max_weight': return save.stats.maxW;
       case 'legend': return save.stats.legend;
+      case 'locations': return S.unlockedCount();
     }
     return 0;
   };

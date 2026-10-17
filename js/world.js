@@ -281,6 +281,8 @@ export function createWorld(scene, renderer, Q) {
   const sunDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - 12), THREE.MathUtils.degToRad(158));
   su.sunPosition.value.copy(sunDir);
   world.sunDir = sunDir;
+  world.sky = sky;
+  world._su = su;
 
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envScene = new THREE.Scene();
@@ -295,6 +297,7 @@ export function createWorld(scene, renderer, Q) {
   const hazeColor = new THREE.Color(0xb0c0ce);
   scene.fog = new THREE.Fog(hazeColor, 120, 3200);
   scene.background = hazeColor.clone().multiplyScalar(0.92);
+  world._hazeColor = hazeColor;
 
   const sun = new THREE.DirectionalLight(0xffdcb0, 2.55);
   sun.position.copy(sunDir).multiplyScalar(80).add(new THREE.Vector3(0, 0, 10));
@@ -304,11 +307,19 @@ export function createWorld(scene, renderer, Q) {
   const sc = sun.shadow.camera; sc.left = -22; sc.right = 22; sc.top = 30; sc.bottom = -30; sc.near = 1; sc.far = 200;
   sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03; sun.shadow.radius = 4;
   scene.add(sun, sun.target);
-  scene.add(new THREE.HemisphereLight(0xbcd4ff, 0x4a4030, 0.38));
+  const hemi = new THREE.HemisphereLight(0xbcd4ff, 0x4a4030, 0.38);
+  scene.add(hemi);
+  world.sun = sun; world.hemi = hemi;
   // 远山补光（冷调）
   const fillHaze = new THREE.DirectionalLight(0xa8c0d8, 0.35);
   fillHaze.position.set(-40, 30, -80);
   scene.add(fillHaze);
+  world.fillHaze = fillHaze;
+  // 月光（夜钓）
+  const moon = new THREE.DirectionalLight(0xa0c0ff, 0);
+  moon.position.set(-20, 40, -30);
+  scene.add(moon);
+  world.moon = moon;
 
   // ---------- 水面 ----------
   const normals = new THREE.TextureLoader().load('textures/waternormals.jpg', t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; });
@@ -378,6 +389,8 @@ export function createWorld(scene, renderer, Q) {
     const terrain = new THREE.Mesh(tg, terrainMat);
     terrain.receiveShadow = true;
     scene.add(terrain);
+    world.terrain = terrain;
+    world._terrainBaseColors = cols.slice();
   }
 
   // ---------- 远山剪影（低模脊线，加强大气纵深） ----------
@@ -633,6 +646,50 @@ export function createWorld(scene, renderer, Q) {
       scene.add(sp);
     }
   }
+
+
+  world.applyTheme = (theme, renderer) => {
+    if (!theme) return;
+    const elev = theme.sunElev;
+    const az = theme.sunAz;
+    const sunDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - elev), THREE.MathUtils.degToRad(az));
+    world.sunDir.copy(sunDir);
+    if (world._su) {
+      world._su.sunPosition.value.copy(sunDir);
+      world._su.turbidity.value = theme.turbidity;
+      world._su.rayleigh.value = theme.rayleigh;
+      world._su.mieCoefficient.value = theme.mie;
+    }
+    world.sun.position.copy(sunDir).multiplyScalar(80).add(new THREE.Vector3(0, 0, 10));
+    world.sun.color.setHex(theme.sunColor);
+    world.sun.intensity = theme.night ? 0.15 : 2.55;
+    world.hemi.color.setHex(theme.hemiSky);
+    world.hemi.groundColor.setHex(theme.hemiGround);
+    world.hemi.intensity = theme.night ? 0.15 : 0.38;
+    world.fillHaze.intensity = theme.night ? 0.08 : 0.35;
+    if (world.moon) world.moon.intensity = theme.night ? 0.55 : 0;
+    const haze = new THREE.Color(theme.haze);
+    scene.fog.color.copy(haze);
+    scene.fog.near = theme.fogNear;
+    scene.fog.far = theme.fogFar;
+    scene.background.copy(haze).multiplyScalar(theme.night ? 0.35 : 0.92);
+    if (world.water) {
+      world.water.material.uniforms.waterColor.value.setHex(theme.water);
+      world.water.material.uniforms.sunColor.value.setHex(theme.sunColor);
+      world.water.material.uniforms.sunDirection.value.copy(sunDir);
+    }
+    if (renderer && theme.exposure != null) renderer.toneMappingExposure = theme.exposure;
+    // 地形色调
+    if (world.terrain && world._terrainBaseColors) {
+      const attr = world.terrain.geometry.attributes.color;
+      const base = world._terrainBaseColors;
+      const m = theme.terrainMul || [1, 1, 1];
+      for (let i = 0; i < attr.count; i++) {
+        attr.setXYZ(i, Math.min(1, base[i*3] * m[0]), Math.min(1, base[i*3+1] * m[1]), Math.min(1, base[i*3+2] * m[2]));
+      }
+      attr.needsUpdate = true;
+    }
+  };
 
   const _billDummy = new THREE.Object3D();
   let _billAcc = 0;
