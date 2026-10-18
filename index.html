@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#1a2a33">
 <title>静湖垂钓 3D</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=2">
 <script type="importmap">
 { "imports": { "three": "./vendor/three.module.js" } }
 </script>
@@ -60,6 +60,13 @@
   <div class="bar"><div id="progressFill"></div></div>
 </div>
 
+<div id="joyPad" class="hidden" aria-hidden="true">
+  <div id="joyBase"><div id="joyKnob"></div></div>
+  <div id="joyTurn">
+    <button type="button" id="joyTurnL" aria-label="左转">⟲</button>
+    <button type="button" id="joyTurnR" aria-label="右转">⟳</button>
+  </div>
+</div>
 <button id="modeBtn"><b>台钓</b><small>切换露亚</small></button>
 <button id="actionBtn">按住抛竿</button>
 <button id="interactBtn" class="hidden">互动</button>
@@ -110,12 +117,12 @@
       <li><b>台钓</b>：按住蓄力、松开抛竿。浮漂轻点是“试口”，整个沉下去（黑漂）的瞬间提竿 = <b>完美提竿</b></li>
       <li><b>露亚</b>：抛出路亚饵后按住收线、松开停顿、轻点抽竿，把速度控制在绿色区间诱鱼攻击，咬饵立刻刺鱼</li>
       <li><b>搏鱼</b>：张力保持绿色；甩头、冲刺时松手卸力，跃水时别松线</li>
-      <li>WASD 走动：<b>房子</b>商店 · <b>渔夫</b>卖鱼 · <b>黑衣人</b>交传说钥匙开船换钓点</li>
+      <li>WASD 或左下角摇杆走动，⟲⟳ 转向：<b>房子</b>商店 · <b>渔夫</b>卖鱼 · <b>黑衣人</b>交传说钥匙开船换钓点</li>
     </ul>
     <button id="startBtn" disabled>加载中…</button>
   </div>
 </div>
 <noscript>需要启用 JavaScript 才能游玩。</noscript>
-<script type="module" src="js/main.js"></script>
+<script type="module" src="js/main.js?v=2"></script>
 </body>
 </html>
