@@ -653,13 +653,32 @@ export function createWorld(scene, renderer, Q) {
     sign.position.set(hx - 0.2, hy + 2.5, hz - 2.18); house.add(sign);
     scene.add(house);
 
-    // 渔夫（码头中段）
+    // 头顶名牌（远处也能认出 NPC；手机竖屏视野窄尤其需要）
+    const makeNameTag = (text, sub, color) => {
+      const cv = document.createElement('canvas'); cv.width = 256; cv.height = 96;
+      const c = cv.getContext('2d');
+      c.fillStyle = 'rgba(10,20,26,0.72)';
+      if (c.roundRect) { c.beginPath(); c.roundRect(8, 8, 240, 80, 22); c.fill(); } else c.fillRect(8, 8, 240, 80);
+      c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillStyle = color; c.font = 'bold 38px sans-serif'; c.fillText(text, 128, sub ? 38 : 48);
+      if (sub) { c.fillStyle = '#ffffff'; c.font = '24px sans-serif'; c.fillText(sub, 128, 70); }
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+      const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+      spr.scale.set(0.9, 0.34, 1); spr.renderOrder = 10;
+      return spr;
+    };
+
+    const hTag = makeNameTag('房子商店', '买竿 · 买饵', '#81d4fa');
+    hTag.position.set(hx - 0.2, hy + 4.7, hz - 2.2); hTag.scale.set(1.5, 0.56, 1); scene.add(hTag);
+
+    // 渔夫：站在码头尽头左侧，抛竿位就在交互范围内，开局就能看到并直接卖鱼
+    // （旧位置 x=-2.2,z=14 在码头外的水面上且位于出生点身后，手机上转不过身、也很难走进交互半径）
     const fisher = new THREE.Group();
     const skin = new THREE.MeshStandardMaterial({ color: 0xe8c4a0, roughness: 0.7 });
     const cloth = new THREE.MeshStandardMaterial({ color: 0x2a5080, roughness: 0.85 });
     const pants = new THREE.MeshStandardMaterial({ color: 0x3a3428, roughness: 0.9 });
     const hatMat = new THREE.MeshStandardMaterial({ color: 0xc9a227, roughness: 0.6 });
-    const fx = -2.2, fz = 14;
+    const fx = -0.75, fz = DOCK_END_Z + 0.15;
     const fy = DECK_Y;
     const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 0.7, 10), cloth);
     torso.position.set(0, 1.05, 0); fisher.add(torso);
@@ -680,7 +699,8 @@ export function createWorld(scene, renderer, Q) {
       new THREE.MeshStandardMaterial({ color: 0x8a6a40, side: THREE.DoubleSide, roughness: 0.9 }));
     basket.position.set(0.55, 0.35, 0.15); fisher.add(basket);
     fisher.position.set(fx, fy, fz);
-    fisher.rotation.y = 0.4;
+    fisher.rotation.y = 0.25;
+    const fTag = makeNameTag('渔夫', '收鱼 · 卖鱼', '#ffd54f'); fTag.position.set(0, 2.15, 0); fisher.add(fTag);
     fisher.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     scene.add(fisher);
 
@@ -689,7 +709,7 @@ export function createWorld(scene, renderer, Q) {
     const coat = new THREE.MeshStandardMaterial({ color: 0x1a1a22, roughness: 0.92 });
     const hood = new THREE.MeshStandardMaterial({ color: 0x121218, roughness: 0.95 });
     const shadowFace = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 1 });
-    const sx = 2.8, sz = 22;
+    const sx = 0.95, sz = 22; // 码头上（旧 x=2.8 在码头外）
     const sy = DECK_Y;
     const storso = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 1.0, 10), coat);
     storso.position.set(0, 1.15, 0); stranger.add(storso);
@@ -706,13 +726,14 @@ export function createWorld(scene, renderer, Q) {
     const armSR = armSL.clone(); armSR.position.x = 0.38; armSR.rotation.z = -0.25; stranger.add(armSR);
     stranger.position.set(sx, sy, sz);
     stranger.rotation.y = -0.6;
+    const sTag = makeNameTag('黑衣人', '钥匙 · 开船', '#b39ddb'); sTag.position.set(0, 2.3, 0); stranger.add(sTag);
     stranger.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     scene.add(stranger);
     world.stranger = stranger;
 
     world.interact = {
       shop: { x: hx - 0.2, z: hz - 2.7, r: 3.2, label: '按 E / 点击 进入房子商店', kind: 'shop' },
-      sell: { x: fx, z: fz, r: 2.8, label: '按 E / 点击 找渔夫卖鱼', kind: 'sell' },
+      sell: { x: fx, z: fz, r: 3.4, label: '按 E / 点击 找渔夫卖鱼', kind: 'sell' },
       stranger: { x: sx, z: sz, r: 3.0, label: '按 E / 点击 与黑衣人交谈', kind: 'stranger' },
     };
   }

@@ -1,13 +1,13 @@
 // 静湖垂钓 3D v2 —— 渲染、输入、台钓/露亚双玩法状态机
 import * as THREE from 'three';
-import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js';
+import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=3';
 import { locationById } from './locations.js';
 import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails } from './fish.js';
 import { preloadQuaterniusFish, tickFishAnim } from './fish-gltf.js';
 import { RODS, LURES, BAITS } from './data.js';
 import { loadSave } from './save.js';
 import { createSystems } from './systems.js';
-import { createUI } from './ui.js';
+import { createUI } from './ui.js?v=3';
 import { clamp, lerp, rand } from './util.js';
 
 // ---------------- 画质 ----------------
@@ -437,7 +437,10 @@ function onPress() {
   if (!started || UI.isOpen()) return;
   G.pressT = performance.now();
   switch (G.state) {
-    case 'idle': G.power = 0; G.powerDir = 1; setState('charging'); break;
+    case 'idle':
+      // 走动时可 360° 转身；背对湖面时先转回湖面再抛竿
+      if (Math.abs(G.aim) > 0.6) { G.aim = 0; UI.toast('已转向湖面，再按一次抛竿'); return; }
+      G.power = 0; G.powerDir = 1; setState('charging'); break;
     case 'waiting': startReturn(G.dip > 0.12 ? '提早了！鱼只是在试口，被吓跑了' : '还没有鱼咬钩，鱼被惊走了'); break;
     case 'bite': hookFish(G.t <= G.perfectWin); break;
     case 'strike': hookFish(G.t <= G.perfectWin); break;
@@ -552,8 +555,17 @@ function syncJoyPad(show) {
 $('cardKeep').addEventListener('click', () => closeCard('keep'));
 $('cardSell').addEventListener('click', () => closeCard('sell'));
 $('cardRelease').addEventListener('click', () => closeCard('release'));
-$('netBtn').addEventListener('click', () => UI.open('net', null, { allowSell: false }));
-$('shopBtn').addEventListener('click', () => UI.toast('去房子商店'));
+$('netBtn').addEventListener('click', () => {
+  if (nearInteract === 'sell') UI.openSell(); // 站在渔夫旁边时，鱼护直接可卖
+  else UI.open('net', null, { allowSell: false });
+});
+// 手机：侧边菜单收起为一个按钮，避免遮挡画面/摇杆
+const menuEl = $('menu'), menuToggle = $('menuToggle');
+if (menuToggle) {
+  const setMenu = open => { menuEl.classList.toggle('open', open); menuToggle.setAttribute('aria-expanded', open ? 'true' : 'false'); };
+  menuToggle.addEventListener('click', e => { e.stopPropagation(); setMenu(!menuEl.classList.contains('open')); });
+  menuEl.addEventListener('click', e => { if (e.target.closest('button') && e.target.closest('button') !== menuToggle) setMenu(false); });
+}
 for (const [btn, name] of [['questBtn', 'quest'], ['equipBtn', 'equip'], ['mapBtn', 'map'], ['dexBtn', 'dex']])
   $(btn).addEventListener('click', () => UI.open(name));
 function showDialogue({ name = '黑衣神秘人', text, okText = '……', cancelText = null }) {
@@ -609,6 +621,9 @@ function tryInteract() {
   else if (nearInteract === 'sell') { UI.openSell(); UI.toast('渔夫：有什么好货？'); }
   else if (nearInteract === 'stranger') talkToStranger();
 }
+// 互动按钮：只用 click（触屏 tap 也会触发 click）。不在 pointerup 里打开面板，
+// 否则随后的合成 click 落在刚弹出的面板遮罩上会立刻把面板关掉。
+$('interactBtn').addEventListener('pointerdown', e => e.stopPropagation());
 $('interactBtn').addEventListener('click', e => { e.stopPropagation(); tryInteract(); });
 addEventListener('keydown', e => {
   if (e.code === 'KeyE' && !e.repeat) tryInteract();
@@ -731,8 +746,10 @@ function tick() {
   const canWalk = s === 'idle' && !UI.isOpen() && started;
   syncJoyPad(canWalk);
   if (canWalk) {
-    if (keys.ArrowLeft || joy.turnL) G.aim = clamp(G.aim + dt * 0.7, -1.2, 1.2);
-    if (keys.ArrowRight || joy.turnR) G.aim = clamp(G.aim - dt * 0.7, -1.2, 1.2);
+    // 可 360° 转身（旧版限制在 ±1.2rad，永远看不到身后的渔夫/房子/黑衣人）
+    if (keys.ArrowLeft || joy.turnL) G.aim += dt * 1.6;
+    if (keys.ArrowRight || joy.turnR) G.aim -= dt * 1.6;
+    if (G.aim > Math.PI) G.aim -= Math.PI * 2; else if (G.aim < -Math.PI) G.aim += Math.PI * 2;
     const fwdX = Math.sin(G.aim), fwdZ = -Math.cos(G.aim);
     let mx = 0, mz = 0;
     if (keys.KeyW) { mx += fwdX; mz += fwdZ; }
@@ -1000,7 +1017,7 @@ function genThumbsLater() {
 $('startBtn').addEventListener('click', () => {
   started = true; $('start').classList.add('hide');
   if (migrated) UI.toast(save.version >= 4 ? '存档已更新：钓点改为传说钥匙推进，进度已重置为湖湾' : '已从旧版本迁移存档，欢迎回来！', 3200);
-  else if (!save.catches) UI.toast('摇杆/WASD 走动 · ⟲⟳ 转向 · 房子开商店 · 渔夫卖鱼 · 先钓 3 条完成主线', 3600);
+  else if (!save.catches) UI.toast('渔夫在码头尽头左前方，点「卖鱼给渔夫」出售 · 摇杆/WASD 走动 · ⟲⟳ 转身 · 房子在岸边', 3600);
   setTimeout(genThumbsLater, 4000);
 });
 // 调试 / 自动化测试接口

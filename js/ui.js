@@ -20,6 +20,7 @@ export function createUI(save, S, ctx) {
     $('lvl').textContent = S.level();
     $('xpFill').style.width = `${S.levelProgress() * 100}%`;
     $('netCount').textContent = `${save.net.length}/${S.netCap()}`;
+    { const mn = document.getElementById('menuNet'); if (mn) mn.textContent = `鱼护 ${save.net.length}/${S.netCap()}`; }
     $('netBtn').classList.toggle('full', S.netFull());
     const n = S.claimableCount();
     $('questDot').textContent = n; $('questDot').style.display = n ? 'flex' : 'none';

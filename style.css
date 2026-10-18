@@ -179,7 +179,7 @@ body.busy #modeBtn { opacity: .35; }
   .c-btns button { font-size: 14px; }
 }
 
-#locInfo{position:fixed;left:12px;top:72px;z-index:5;font-size:12px;color:rgba(255,255,255,.75);text-shadow:0 1px 3px #000;pointer-events:none}
+#locInfo{position:fixed;left:12px;top:calc(76px + env(safe-area-inset-top));z-index:5;font-size:12px;color:rgba(255,255,255,.75);text-shadow:0 1px 3px #000;pointer-events:none}
 .mapGrid{display:grid;grid-template-columns:1fr;gap:10px}
 .mapCard{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:12px 14px;text-align:left;color:#e8eef4;cursor:pointer}
 .mapCard.on{border-color:#6ec6ff;box-shadow:0 0 0 1px #6ec6ff inset}
@@ -298,4 +298,37 @@ body.busy #modeBtn { opacity: .35; }
 @media (max-width: 400px) {
   #joyBase { width: 100px; height: 100px; }
   #joyKnob { width: 44px; height: 44px; margin: -22px 0 0 -22px; }
+}
+
+/* ---- v3 手机 HUD：侧边菜单收起为一个按钮；摇杆 / 抛竿 / 互动互不遮挡 ---- */
+#menu #menuToggle { display: none; }
+#interactBtn { bottom: calc(96px + env(safe-area-inset-bottom)); }
+@media (pointer: coarse), (max-width: 900px) {
+  #menu { top: calc(98px + env(safe-area-inset-top)); transform: none; gap: 6px; }
+  #menu #menuToggle { display: flex; width: 72px; min-height: 46px; }
+  #menu #menuToggle b { font-size: 14px; white-space: nowrap; }
+  #menu #menuToggle small { font-size: 10px; white-space: nowrap; }
+  #menu > button:not(#menuToggle) { display: none; }
+  #menu.open > button:not(#menuToggle) { display: flex; }
+  #menu.open #menuToggle { border-color: #7fd6ff; background: rgba(20,60,90,.8); }
+  #menu button { width: 72px; min-height: 44px; }
+  #interactHint { display: none !important; } /* 按钮本身已写明「卖鱼给渔夫」等 */
+  #interactBtn { padding: 14px 24px; font-size: 16px; max-width: calc(100vw - 280px); min-width: 110px; white-space: nowrap; }
+}
+/* 竖屏手机：提示条放在摇杆与抛竿按钮之间，可换行，不压到 ⟲⟳ */
+@media (pointer: coarse) and (orientation: portrait), (max-width: 600px) {
+  #hint { white-space: normal; text-align: center; max-width: calc(100vw - 270px); font-size: 12px; line-height: 1.35; bottom: calc(14px + env(safe-area-inset-bottom)); }
+  #interactBtn { bottom: calc(150px + env(safe-area-inset-bottom)); max-width: calc(100vw - 236px); padding: 12px 14px; font-size: 15px; }
+}
+/* 横屏手机（高度很小）：展开的菜单横向排在顶部，避开左下摇杆 */
+@media (orientation: landscape) and (max-height: 500px) {
+  #menu { top: calc(98px + env(safe-area-inset-top)); flex-direction: row; flex-wrap: wrap; max-width: calc(100vw - 260px); }
+  #menu button { min-height: 44px; }
+  #joyPad { bottom: calc(10px + env(safe-area-inset-bottom)); gap: 6px; }
+  #joyBase { width: 96px; height: 96px; }
+  #joyKnob { width: 42px; height: 42px; margin: -21px 0 0 -21px; }
+  #joyTurn button { width: 40px; height: 40px; }
+  #actionBtn { bottom: calc(40px + env(safe-area-inset-bottom)); width: 84px; height: 84px; }
+  #modeBtn { bottom: calc(136px + env(safe-area-inset-bottom)); }
+  #interactBtn { bottom: calc(70px + env(safe-area-inset-bottom)); }
 }
