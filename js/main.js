@@ -1,13 +1,14 @@
-// 静湖垂钓 3D v2 —— 渲染、输入、台钓/露亚双玩法状态机
+// 静湖垂钓 3D v4 —— 渲染、输入、台钓/露亚双玩法状态机、音效、新手教学
 import * as THREE from 'three';
-import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=3';
+import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=4';
 import { locationById } from './locations.js';
 import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails } from './fish.js';
 import { preloadQuaterniusFish, tickFishAnim } from './fish-gltf.js';
-import { RODS, LURES, BAITS } from './data.js';
-import { loadSave } from './save.js';
-import { createSystems } from './systems.js';
-import { createUI } from './ui.js?v=3';
+import { RODS, LURES, BAITS } from './data.js?v=4';
+import { loadSave } from './save.js?v=4';
+import { createSystems } from './systems.js?v=4';
+import { createUI } from './ui.js?v=4';
+import { createAudio } from './audio.js?v=4';
 import { clamp, lerp, rand } from './util.js';
 
 // ---------------- 画质 ----------------
@@ -27,6 +28,18 @@ const S = createSystems(save, {
   equipChanged: () => { applyGear(); UI && UI.refreshHud(); },
 });
 S.ensureDaily();
+
+// ---------------- 音效（首次手势后解锁） ----------------
+const AU = createAudio();
+{
+  const unlock = () => { AU.unlock(); if (AU.ready()) { removeEventListener('pointerdown', unlock, true); removeEventListener('keydown', unlock, true); removeEventListener('touchend', unlock, true); } };
+  addEventListener('pointerdown', unlock, true); addEventListener('keydown', unlock, true); addEventListener('touchend', unlock, true);
+  const mb = document.getElementById('muteBtn');
+  const paint = () => { mb.textContent = AU.isMuted() ? '🔇' : '🔊'; mb.setAttribute('aria-pressed', AU.isMuted() ? 'true' : 'false'); };
+  paint();
+  mb.addEventListener('pointerdown', e => e.stopPropagation());
+  mb.addEventListener('click', e => { e.stopPropagation(); AU.unlock(); AU.toggleMute(); paint(); AU.click(); });
+}
 
 // ---------------- 渲染器 ----------------
 const canvas = document.getElementById('game');
@@ -121,7 +134,12 @@ const bobber = new THREE.Group();
   const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, 0.14, 8), new THREE.MeshPhysicalMaterial({ color: 0xffd400, emissive: 0x554400, roughness: 0.3 }));
   antenna.position.y = 0.13;
   const cap = new THREE.Mesh(new THREE.SphereGeometry(0.011, 10, 8), red); cap.position.y = 0.2;
-  bobber.add(top, bottom, antenna, cap);
+  // v4：高对比漂尾——不受光照影响的荧光橙 + 黑白色环，远处水面/天光倒影里都醒目
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xff3a00, fog: false });
+  const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.07, 10), glowMat); tip.position.y = 0.235;
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.018, 10), new THREE.MeshBasicMaterial({ color: 0x111111, fog: false })); band.position.y = 0.19;
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), new THREE.MeshBasicMaterial({ color: 0xfff200, fog: false })); ball.position.y = 0.28;
+  bobber.add(top, bottom, antenna, cap, tip, band, ball);
   bobber.traverse(o => { if (o.isMesh) o.castShadow = true; });
 }
 // ---------------- 路亚饵模型 ----------------
@@ -135,6 +153,7 @@ const lureModels = {};
   const frog = new THREE.Group(); { const m = mk(new THREE.SphereGeometry(0.03, 14, 10), 0x3a8a2a, 0, 0.5); m.scale.set(1.2, 0.6, 1); frog.add(m); for (const s of [1, -1]) { const l = mk(new THREE.CylinderGeometry(0.004, 0.004, 0.05, 6), 0x2a6a1a); l.rotation.set(Math.PI / 2, 0, 0.6 * s); l.position.set(-0.035, 0, 0.02 * s); frog.add(l); } }
   Object.assign(lureModels, { spoon, minnow, worm, popper, frog });
 }
+const BOB_BOOST = isMobile ? 2.4 : 1.35; // 入水后浮漂额外放大（手机屏幕小）
 const tackle = new THREE.Group(); // 线末端：浮漂或路亚饵
 scene.add(tackle);
 tackle.add(bobber);
@@ -164,7 +183,7 @@ const _tip = new THREE.Vector3();
 function updateLine(sag) {
   rodTip.getWorldPosition(_tip);
   const p = lineGeo.attributes.position, b = tackle.position;
-  const topY = b.y + (save.equip.mode === 'lure' ? 0.02 : 0.2) * tackle.scale.y;
+  const topY = b.y + (save.equip.mode === 'lure' ? 0.02 : 0.3) * tackle.scale.y;
   for (let i = 0; i < LINE_PTS; i++) {
     const t = i / (LINE_PTS - 1);
     p.setXYZ(i, lerp(_tip.x, b.x, t), lerp(_tip.y, topY, t) - Math.sin(t * Math.PI) * sag, lerp(_tip.z, b.z, t));
@@ -249,7 +268,7 @@ async function boatTravelTo(id, { unlockMsg } = {}) {
 UI = createUI(save, S, {
   thumbs: () => thumbs,
   canOpenPanel: () => G.state === 'idle',
-  coinFx: () => { $('coinChip').classList.remove('pop'); void $('coinChip').offsetWidth; $('coinChip').classList.add('pop'); },
+  coinFx: () => { $('coinChip').classList.remove('pop'); void $('coinChip').offsetWidth; $('coinChip').classList.add('pop'); AU.coin(4); },
   onLocationChange: () => { applyCurrentLocation(); UI.refreshHud(); },
   travelTo: (id) => boatTravelTo(id),
 });
@@ -273,6 +292,12 @@ const G = {
   tension: 0.4, progress: 0, slackT: 0, overT: 0, evt: null, evtT: 2, jumpModel: null, jumpT: 0,
   retrieveFrom: new THREE.Vector3(), retrieveT: 0, shake: 0, catchModel: null, catchLight: null, catchInfo: null, pitch: -0.1,
 };
+// 新手教学状态（逻辑在文件末尾）
+const TUT_KEY = 'fishing3d_tutorial';
+const TUT = { on: false, step: null, t: 0, reward: false };
+const spotRing = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.62, 40), new THREE.MeshBasicMaterial({ color: 0xffd54f, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+spotRing.rotation.x = -Math.PI / 2; spotRing.position.set(0, DECK_Y + 0.04, DOCK_END_Z + 3.0); spotRing.visible = false; spotRing.renderOrder = 3;
+scene.add(spotRing);
 const HINT = {
   idle: () => save.equip.mode === 'lure'
     ? (isMobile ? '露亚：按住蓄力，拖动瞄准，松开抛投' : '露亚：按住鼠标/空格蓄力，拖动或 A/D 瞄准，松开抛投')
@@ -311,10 +336,12 @@ function startCast() {
   G.castDur = 0.7 + dist * 0.018; G.castPower = p;
   if (G.mode === 'float') G.baitUsed = S.consumeBait() || 'none';
   UI.refreshHud();
+  AU.cast(p);
   setState('casting');
 }
 function startReturn(msg) {
-  if (msg) UI.toast(msg);
+  if (msg) { UI.toast(msg); AU.fail(); }
+  AU.reel(false);
   G.fish = null; G.follower = null; followShadow.visible = false;
   if (G.jumpModel) { scene.remove(G.jumpModel); G.jumpModel.userData.dispose(); G.jumpModel = null; }
   G.retrieveFrom.copy(tackle.position); G.retrieveT = 0;
@@ -328,6 +355,7 @@ function hookFish(perfect) {
   G.holding = true;
   followShadow.visible = false;
   spawnSplash(tackle.position, 25, 0.8);
+  AU.hook();
   if (G.fish.sp.predator) {
     const m = buildFish(G.fish.sp); const L = clamp(0.42 * Math.cbrt(G.fish.weight), 0.15, 2.4);
     m.scale.setScalar(L); m.visible = false; scene.add(m); G.jumpModel = m;
@@ -338,6 +366,7 @@ function landFish() {
   const { sp, weight } = G.fish;
   const info = S.recordCatch(sp, weight, { mode: G.mode, perfect: G.perfect });
   G.catchInfo = info;
+  AU.reel(false); AU.catchFish(sp.rarity);
   if (G.jumpModel) { scene.remove(G.jumpModel); G.jumpModel.userData.dispose(); G.jumpModel = null; }
   spawnSplash(tackle.position, 60, 1.3); spawnRipple(tackle.position, 1.5);
   const m = buildFish(sp);
@@ -383,6 +412,7 @@ function landFish() {
   c.querySelector('.c-weight').textContent = weight >= 10 ? `${weight.toFixed(1)} kg` : `${weight.toFixed(2)} kg`;
   c.querySelector('.c-value').textContent = `估价 ${info.value} 金币`;
   let bonusTxt = `渔获奖励 +${info.bonus} 金币 · +${info.xp} 经验${G.perfect ? '（完美加成）' : ''}`;
+  if (TUT.on && TUT.reward) { TUT.reward = false; const got = S.grant({ coins: 50, bait: { worm: 10 } }); bonusTxt += ` · 🎁 新手奖励：${got.join('、')}`; }
   if (info.keyDrop && !info.keyDrop.already) bonusTxt += ` · 🔑 获得「${info.keyDrop.name}」`;
   else if (info.keyDrop?.already) bonusTxt += ` · 已持有「${info.keyDrop.name}」`;
   c.querySelector('.c-bonus').textContent = bonusTxt;
@@ -407,7 +437,7 @@ function closeCard(action) {
   const info = G.catchInfo; if (!info) return;
   if (action === 'keep' && !S.keepFish(info.fish)) action = 'sell';
   if (action === 'keep') UI.toast(`${speciesById[info.fish.id].name} 已放入鱼护`);
-  if (action === 'sell') { S.sellCoins(info.value); UI.toast(`出售 +${info.value} 金币`); }
+  if (action === 'sell') { S.sellCoins(info.value); UI.toast(`出售 +${info.value} 金币`); AU.coin(3); }
   if (action === 'release') { S.addXp(3); S.persist(); UI.toast('放生了，功德 +1（经验 +3）'); }
   ui.card.classList.remove('show');
   if (G.catchModel) { camera.remove(G.catchModel); G.catchModel.userData.dispose(); G.catchModel = null; }
@@ -415,6 +445,7 @@ function closeCard(action) {
   G.fish = null; G.catchInfo = null;
   UI.refreshHud();
   setState('idle');
+  if (TUT.on) tutFinish(false);
 }
 
 // 露亚：抽竿
@@ -436,6 +467,10 @@ let pointerX = null, started = false;
 function onPress() {
   if (!started || UI.isOpen()) return;
   G.pressT = performance.now();
+  if (TUT.on) {
+    if (G.state === 'idle' && TUT.step === 'move') { UI.toast('先走到码头尽头发光的钓位上'); return; }
+    if (G.state === 'waiting') { UI.toast('还没到！等浮漂整个沉下去（黑漂）再提竿'); return; }
+  }
   switch (G.state) {
     case 'idle':
       // 走动时可 360° 转身；背对湖面时先转回湖面再抛竿
@@ -723,9 +758,10 @@ function updateFight(dt, time, f) {
     u.uSpeed.value = 18;
     u.uLeap.value = Math.sin(k * Math.PI); // 弓背
     tickFishAnim(m, dt);
-    if (k > 0.08 && k < 0.2 && !G.evt.splashOut) { G.evt.splashOut = true; spawnSplash(tackle.position, 50, 1.4); spawnRipple(tackle.position, 1.6); }
+    if (k > 0.08 && k < 0.2 && !G.evt.splashOut) { G.evt.splashOut = true; spawnSplash(tackle.position, 50, 1.4); spawnRipple(tackle.position, 1.6); AU.splash(1.2); }
     if (k > 0.88 && !G.evt.splashed) { G.evt.splashed = true; spawnSplash(m.position, 55, 1.5); spawnRipple(m.position, 1.8); u.uLeap.value = 0; }
   }
+  if (TUT.on) { G.overT = 0; G.slackT = 0; if (G.evt) G.evt.slack = 0; if (G.holding) G.progress = Math.min(1, G.progress + dt * 0.08); }
   if (G.overT > 0.35) { G.shake = 1.5; if (navigator.vibrate) navigator.vibrate(120); startReturn('线断了！张力过大（升级鱼线可提高上限）'); return 0; }
   if (e === 'jump' && G.evt.slack > 0.35) { startReturn('鱼跃水甩钩了！跃水时要保持张力'); return 0; }
   if (G.slackT > 2.6) { startReturn('鱼脱钩了！线太松了'); return 0; }
@@ -741,6 +777,9 @@ function tick() {
   const dt = Math.min(clock.getDelta(), 0.05), time = clock.elapsedTime;
   G.t += dt;
   world.update(dt, time, camera);
+  AU.update(dt);
+  if (G.state === 'reeling' || G.state === 'lure') AU.reel(G.holding, G.state === 'lure' ? 8 + G.speed * 10 : 14);
+  if (TUT.on) tutTick(dt, time);
   const s = G.state, f = forward();
   // 瞄准：空闲走动时仅用方向键；抛竿等状态仍可用 A/D
   const canWalk = s === 'idle' && !UI.isOpen() && started;
@@ -793,7 +832,15 @@ function tick() {
     if (nearInteract) {
       const it = world.interact[nearInteract];
       hint.textContent = it.label; hint.classList.remove('hidden');
-      ib.textContent = nearInteract === 'shop' ? '进入商店' : nearInteract === 'stranger' ? '与黑衣人交谈' : '卖鱼给渔夫';
+      let label = nearInteract === 'shop' ? '进入商店' : nearInteract === 'stranger' ? '与黑衣人交谈' : '卖鱼给渔夫';
+      // NPC 不在画面里时加方向箭头（渔夫站在抛竿位左手边）
+      tmpV.set(it.x, DECK_Y + 1.2, it.z).project(camera);
+      if (tmpV.z > 1 || Math.abs(tmpV.x) > 1) {
+        const dx = it.x - PLAYER.x, dz = it.z - PLAYER.z;
+        const right = dx * Math.cos(G.aim) - dz * Math.sin(G.aim);
+        label = right < 0 ? `👈 ${label}` : `${label} 👉`;
+      }
+      if (ib.textContent !== label) ib.textContent = label;
       ib.classList.remove('hidden');
     } else {
       hint.classList.add('hidden'); ib.classList.add('hidden');
@@ -834,8 +881,10 @@ function tick() {
     if (k >= 1) {
       tackle.rotation.set(0, Math.atan2(f.x, f.z) + Math.PI / 2, 0);
       spawnSplash(G.castTo, 30, 0.9); spawnRipple(G.castTo, 1.2);
+      AU.splash(0.6 + G.castPower * 0.4);
       if (G.mode === 'float') {
         G.waitT = rand(3, 8) * BAITS[G.baitUsed || 'none'].wait * (S.location().waitMul || 1); G.nibbleT = rand(0.8, 2); G.nibbling = 0; G.dip = 0;
+        if (TUT.on) { G.waitT = 6.5; G.nibbleT = 1.6; } // 教学：固定节奏，先试口两三下再黑漂
         setState('waiting');
       } else {
         G.lp.copy(G.castTo); G.speed = 0; G.attract = 0.05; G.twitches = []; G.follower = null; G.holding = false;
@@ -852,14 +901,16 @@ function tick() {
       const remain = G.waitT - G.t;
       if (G.nibbleT <= 0) {
         G.dip = rand(0.18, 0.32); G.nibbling = 3; G.nibbleT = rand(0.6, 1.6) * (remain < 2 ? 0.6 : 1.3);
-        spawnRipple(tackle.position, 0.45, 0.9); ui.hint.textContent = HINT.waiting();
+        spawnRipple(tackle.position, 0.45, 0.9); ui.hint.textContent = HINT.waiting(); AU.nibble();
       }
       G.nibbling = Math.max(0, G.nibbling - dt);
       if (G.t >= G.waitT) {
-        G.fish = S.pickFish('float', G.castPower);
+        G.fish = TUT.on ? { sp: speciesById.carp || SPECIES[0], weight: 1.6, wf: 0.15 } : S.pickFish('float', G.castPower);
         const sens = S.rod().sens;
         G.perfectWin = 0.32 * sens;
         G.biteWindow = (G.perfectWin + (1.15 - G.fish.sp.diff * 0.06) * sens) * (S.location().biteWin || 1);
+        if (TUT.on) { G.perfectWin = 0.8; G.biteWindow = 1e9; } // 教学鱼保证上钩
+        AU.bite();
         spawnSplash(tackle.position, 14, 0.5); spawnRipple(tackle.position, 1.1, 1.2);
         if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
         setState('bite');
@@ -871,7 +922,7 @@ function tick() {
       if (G.t > G.biteWindow) startReturn('鱼跑了… 反应慢了一点');
     }
     tackle.position.set(G.castTo.x, waveY - G.dip * 0.16, G.castTo.z);
-    tackle.scale.setScalar(tackleScale);
+    tackle.scale.setScalar(tackleScale * BOB_BOOST);
     sag = 0.35;
   } else if (s === 'lure' || s === 'strike') {
     const L = S.lure();
@@ -905,6 +956,7 @@ function tick() {
           const sens = S.rod().sens;
           G.perfectWin = 0.3 * sens; G.biteWindow = (G.perfectWin + (0.75 - G.fish.sp.diff * 0.04) * sens) * (S.location().biteWin || 1);
           spawnSplash(G.lp, 45, 1.2); spawnRipple(G.lp, 1.4, 1.2);
+          AU.bite(); AU.reel(false);
           ui.bite.textContent = '咬饵了！点击刺鱼！'; ui.bite.classList.add('show');
           if (navigator.vibrate) navigator.vibrate([80, 30, 80]);
           setState('strike');
@@ -926,7 +978,7 @@ function tick() {
     tackle.scale.setScalar(tackleScale);
     sag = 0.12 * (1 - G.speed);
   } else if (s === 'reeling') {
-    tackle.scale.setScalar(tackleScale);
+    tackle.scale.setScalar(tackleScale * (G.mode === 'float' ? BOB_BOOST : 1));
     sag = updateFight(dt, time, f);
   } else if (s === 'returning') {
     G.retrieveT += dt;
@@ -973,9 +1025,10 @@ function tick() {
   updateFx(dt);
 
   // 远距离标记
-  const showMark = ['waiting', 'bite', 'reeling', 'lure', 'strike'].includes(G.state) && tackle.position.distanceTo(CAM_POS) > 10;
+  // v4：手机上入水后始终标出浮漂/路亚饵位置（圆环 + 箭头），桌面端远处才标
+  const showMark = ['waiting', 'bite', 'reeling', 'lure', 'strike'].includes(G.state) && tackle.position.distanceTo(CAM_POS) > (isMobile || TUT.on ? 4 : 10);
   if (showMark) {
-    const v = tackle.position.clone(); v.y += 0.35 * tackle.scale.y; v.project(camera);
+    const v = tackle.position.clone(); v.y += (G.mode === 'lure' ? 0.05 : 0.16) * tackle.scale.y; v.project(camera);
     ui.mark.style.transform = `translate(${(v.x * 0.5 + 0.5) * innerWidth}px, ${(-v.y * 0.5 + 0.5) * innerHeight}px)`;
   }
   ui.mark.classList.toggle('show', showMark);
@@ -1002,7 +1055,7 @@ setState('idle');
 requestAnimationFrame(tick);
 setTimeout(() => {
   document.body.classList.add('ready');
-  const sb = $('startBtn'); sb.disabled = false; sb.textContent = save.catches ? '继续钓鱼' : '开始钓鱼';
+  const sb = $('startBtn'); sb.disabled = false; sb.textContent = save.catches ? '继续' : '开始钓鱼';
 }, 30);
 function genThumbsLater() {
   if (location.search.includes('nothumbs')) return;
@@ -1014,11 +1067,92 @@ function genThumbsLater() {
   if (window.requestIdleCallback) requestIdleCallback(run, { timeout: 15000 });
   else setTimeout(run, 10000);
 }
+let forceTutorial = false;
 $('startBtn').addEventListener('click', () => {
+  if (started) return;
   started = true; $('start').classList.add('hide');
+  setTimeout(() => { $('start').style.display = 'none'; }, 650);
+  AU.unlock(); AU.step();
+  const wantTut = forceTutorial || (localStorage.getItem(TUT_KEY) !== 'done' && !save.catches);
+  if (!wantTut && localStorage.getItem(TUT_KEY) !== 'done') localStorage.setItem(TUT_KEY, 'done'); // 老玩家不再弹教学
   if (migrated) UI.toast(save.version >= 4 ? '存档已更新：钓点改为传说钥匙推进，进度已重置为湖湾' : '已从旧版本迁移存档，欢迎回来！', 3200);
-  else if (!save.catches) UI.toast('渔夫在码头尽头左前方，点「卖鱼给渔夫」出售 · 摇杆/WASD 走动 · ⟲⟳ 转身 · 房子在岸边', 3600);
+  if (wantTut) tutStart();
+  else if (!migrated && !save.catches) UI.toast('渔夫在你左后方，点「卖鱼给渔夫」出售 · 摇杆/WASD 走动 · ⟲⟳ 转身 · 房子在岸边', 3600);
   setTimeout(genThumbsLater, 4000);
 });
+// 玩法说明（可折叠，保留旧版说明文字）
+$('helpToggle').addEventListener('click', () => {
+  const p = $('helpPanel'), open = p.hidden;
+  p.hidden = !open; $('helpToggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+  $('helpToggle').textContent = open ? '玩法说明 ▴' : '玩法说明 ▾';
+});
+$('replayTut').addEventListener('click', () => { if ($('startBtn').disabled) return; forceTutorial = true; $('startBtn').click(); });
+
+// ---------------- 新手教学（首次游玩；触屏与键鼠通用） ----------------
+function tutStart() {
+  if (G.state !== 'idle') return;
+  TUT.on = true; TUT.t = 0;
+  TUT.reward = localStorage.getItem(TUT_KEY) !== 'done';
+  if (save.equip.mode === 'lure') S.setMode('float');
+  if (S.baitId() === 'none' && save.bait.worm == null) save.bait.worm = 3; // 保证教学这一竿有饵
+  // 从码头稍后方出发，先练习走到钓位
+  PLAYER.x = 0.9; PLAYER.z = DOCK_END_Z + 7.0; G.aim = 0; // 码头右侧出发：渔夫（左后方）不入镜
+  spotRing.visible = true;
+  $('tut').classList.remove('hidden');
+  tutSet('move');
+}
+const TUT_TEXT = {
+  move: () => isMobile ? '用左下角<b>摇杆</b>往前推，走到码头尽头发光的<b>钓位</b>上' : '按 <b>W</b> 往前走（A/D 平移，←/→ 转身），站到码头尽头发光的<b>钓位</b>上',
+  charge: () => isMobile ? '<b>按住</b>右下角「按住抛竿」按钮开始蓄力（先别松手）' : '<b>按住空格</b>（或按住鼠标左键）开始蓄力，先别松开',
+  release: () => '看底部的力度条，到七八成时<b>松开</b>，把浮漂抛出去！',
+  watch: () => '盯住<b>浮漂</b>（圆圈标记处）。轻轻点动是鱼在试口，<b>先别动</b>…',
+  bite: () => isMobile ? '浮漂整个沉下去了——<b>黑漂</b>！快<b>点一下</b>按钮提竿！' : '浮漂整个沉下去了——<b>黑漂</b>！快按<b>空格</b>或点击提竿！',
+  reel: () => isMobile ? '<b>按住</b>按钮收线；张力变红就<b>松手</b>卸力，进度条满了鱼就上来了' : '<b>按住空格/鼠标</b>收线；张力变红就<b>松手</b>卸力，进度条满了鱼就上来了',
+  done: () => '钓到啦！🎉 新手奖励已发放。点「放入鱼护」收下，攒够了卖给<b>左后方的渔夫</b>（点「卖鱼给渔夫」）',
+};
+const TUT_ORDER = ['move', 'charge', 'release', 'watch', 'bite', 'reel', 'done'];
+function tutSet(step) {
+  if (TUT.step === step && TUT.on) { /* 刷新文字即可 */ }
+  TUT.step = step;
+  const i = TUT_ORDER.indexOf(step);
+  $('tutStep').textContent = step === 'done' ? '新手教学 完成' : `新手教学 ${i + 1}/6`;
+  $('tutText').innerHTML = TUT_TEXT[step]();
+  const box = $('tut').querySelector('.tut-box'); box.style.animation = 'none'; void box.offsetWidth; box.style.animation = '';
+  document.querySelectorAll('.tut-focus').forEach(el => el.classList.remove('tut-focus'));
+  const focus = { move: isMobile ? 'joyBase' : null, charge: 'actionBtn', release: 'actionBtn', bite: 'actionBtn', reel: 'actionBtn' }[step];
+  if (focus) $(focus).classList.add('tut-focus');
+  spotRing.visible = step === 'move';
+  $('tutSkip').style.visibility = step === 'done' ? 'hidden' : '';
+  if (i > 0) AU.step();
+}
+function tutTick(dt, time) {
+  TUT.t += dt;
+  const st = G.state;
+  if (TUT.step === 'move') {
+    spotRing.material.opacity = 0.55 + Math.sin(time * 5) * 0.3;
+    spotRing.scale.setScalar(1 + Math.sin(time * 3) * 0.08);
+    // 码头很窄（x 限制在 ±1.1），走到钓位那一排即可，不要求正中
+    if (Math.abs(PLAYER.z - spotRing.position.z) < 0.9 && Math.abs(PLAYER.x - spotRing.position.x) < 1.3) { G.aim = 0; tutSet('charge'); }
+  } else if (TUT.step === 'charge') { if (st === 'charging') tutSet('release'); }
+  else if (TUT.step === 'release') { if (st === 'casting' || st === 'waiting') tutSet('watch'); else if (st === 'idle') tutSet('charge'); }
+  else if (TUT.step === 'watch') { if (st === 'bite') tutSet('bite'); else if (st === 'idle') tutSet('charge'); }
+  else if (TUT.step === 'bite') { if (st === 'reeling') tutSet('reel'); else if (st === 'idle') tutSet('charge'); }
+  else if (TUT.step === 'reel') { if (st === 'caught') tutSet('done'); else if (st === 'idle') tutSet('charge'); }
+}
+function tutFinish(skipped) {
+  if (!TUT.on) return;
+  TUT.on = false; TUT.step = null;
+  localStorage.setItem(TUT_KEY, 'done');
+  spotRing.visible = false;
+  document.querySelectorAll('.tut-focus').forEach(el => el.classList.remove('tut-focus'));
+  $('tut').classList.add('hidden');
+  if (skipped) {
+    // 跳过时若还在走位，直接站到钓位
+    if (G.state === 'idle') { PLAYER.x = 0; PLAYER.z = DOCK_END_Z + 3.0; G.aim = 0; }
+    UI.toast('已跳过教学 · 随时可在开始界面「玩法说明」里重玩', 2600);
+  } else UI.toast('教学完成！渔夫在你左后方 · 钓到传说鱼可获得下一钓点的钥匙', 3400);
+}
+$('tutSkip').addEventListener('pointerdown', e => e.stopPropagation());
+$('tutSkip').addEventListener('click', e => { e.stopPropagation(); tutFinish(true); });
 // 调试 / 自动化测试接口
-window.__game = { G, save, S, UI, startCast, onPress, onRelease, hookFish, landFish, setState, closeCard, twitch, speciesById, buildFish, SPECIES, applyCurrentLocation, tryInteract, talkToStranger, boatTravelTo, PLAYER, world, CAM_POS, fishAssetsReady };
+window.__game = { G, save, S, UI, AU, TUT, tutStart, tutFinish, startCast, onPress, onRelease, hookFish, landFish, setState, closeCard, twitch, speciesById, buildFish, SPECIES, applyCurrentLocation, tryInteract, talkToStranger, boatTravelTo, PLAYER, world, CAM_POS, fishAssetsReady };

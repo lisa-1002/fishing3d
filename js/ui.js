@@ -1,6 +1,6 @@
 // 界面：HUD、鱼护、商店、任务、装备、图鉴
 import { SPECIES, RARITY, speciesById } from './fish.js';
-import { RODS, LINES, NETS, BAITS, LURES, MAIN_QUESTS, MAX_LEVEL, LEVEL_XP } from './data.js';
+import { RODS, LINES, NETS, BAITS, LURES, MAIN_QUESTS, MAX_LEVEL, LEVEL_XP } from './data.js?v=4';
 import { LOCATIONS, mapStatus } from './locations.js';
 
 const $ = id => document.getElementById(id);
@@ -34,6 +34,12 @@ export function createUI(save, S, ctx) {
       : `${rod.name} · ${S.bait().name}${S.baitId() !== 'none' ? '×' + save.bait[S.baitId()] : ''}`;
     const loc = S.location();
     const li = $('locInfo'); if (li) li.textContent = `📍 ${loc.name}`;
+    const pi = $('pityInfo');
+    if (pi && S.pityInfo) {
+      const p = S.pityInfo();
+      pi.textContent = `🐉 传说保底 ${p.n}/${p.N}${p.left <= 3 ? ' · 快出了！' : ''}`;
+      pi.title = `本钓点再钓 ${p.left} 条内必出传说鱼（钓到传说后重置）`;
+    }
     if (current) UI.render();
   };
 
@@ -158,14 +164,16 @@ export function createUI(save, S, ctx) {
   function renderQuests() {
     pTitle.innerHTML = '任务';
     tabs([['daily', '每日任务'], ['main', '主线 / 成就']]);
+    const p = S.pityInfo ? S.pityInfo() : null;
+    const pityHtml = p ? `<div class="pity"><span>🐉 传说保底（${S.location().name}）</span><div class="qbar"><u style="width:${p.n / p.N * 100}%"></u><span>${p.n}/${p.N}</span></div><small>最多再钓 ${p.left} 条必出传说鱼${p.first ? '（新手湖湾首条传说加速）' : ''}，传说鱼带有下一钓点的钥匙</small></div>` : '';
     if (tab === 'daily') {
       const d = save.daily;
       const now = new Date(), next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
       const h = Math.floor((next - now) / 3600000), m = Math.floor((next - now) / 60000) % 60;
-      pBody.innerHTML = `<div class="sec">每天 0 点刷新 · 剩余 ${h} 小时 ${m} 分</div>` + d.quests.map((q, i) =>
+      pBody.innerHTML = pityHtml + `<div class="sec">每天 0 点刷新 · 剩余 ${h} 小时 ${m} 分</div>` + d.quests.map((q, i) =>
         questRow(q.text, '', q.progress, q.target, q.reward, q.claimed ? 'claimed' : q.progress >= q.target ? 'ready' : 'doing', 'claimDaily', i)).join('');
     } else {
-      pBody.innerHTML = MAIN_QUESTS.map(q => {
+      pBody.innerHTML = pityHtml + MAIN_QUESTS.map(q => {
         const v = S.mainValue(q);
         return questRow(q.text, q.name, q.type === 'max_weight' ? Math.round(v * 10) / 10 : v, q.target, q.reward, save.mainClaimed[q.id] ? 'claimed' : v >= q.target ? 'ready' : 'doing', 'claimMain', q.id);
       }).join('');
