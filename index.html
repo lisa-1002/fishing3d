@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#1a2a33">
 <title>静湖垂钓 3D</title>
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 <script type="importmap">
 { "imports": { "three": "./vendor/three.module.js" } }
 </script>
@@ -25,9 +25,9 @@
 <div id="locInfo"></div>
 
 <div id="menu">
+  <button id="menuToggle" type="button" aria-expanded="false" aria-controls="menu"><b>☰ 菜单</b><small id="menuNet">鱼护 0/8</small></button>
   <button id="netBtn"><b>鱼护</b><small id="netCount">0/8</small></button>
-  <!-- 出售仅渔夫；商店仅房子 -->
-  <button id="shopBtn" class="gated" title="去房子商店"><b>商店</b><small>去房子</small></button>
+  <!-- 出售：码头尽头的渔夫；商店：岸边房子（不再放无用的商店按钮） -->
   <button id="questBtn"><b>任务</b><span id="questDot">0</span></button>
   <button id="equipBtn"><b>装备</b></button>
   <button id="mapBtn"><b>钓点</b></button>
@@ -117,12 +117,12 @@
       <li><b>台钓</b>：按住蓄力、松开抛竿。浮漂轻点是“试口”，整个沉下去（黑漂）的瞬间提竿 = <b>完美提竿</b></li>
       <li><b>露亚</b>：抛出路亚饵后按住收线、松开停顿、轻点抽竿，把速度控制在绿色区间诱鱼攻击，咬饵立刻刺鱼</li>
       <li><b>搏鱼</b>：张力保持绿色；甩头、冲刺时松手卸力，跃水时别松线</li>
-      <li>WASD 或左下角摇杆走动，⟲⟳ 转向：<b>房子</b>商店 · <b>渔夫</b>卖鱼 · <b>黑衣人</b>交传说钥匙开船换钓点</li>
+      <li><b>渔夫</b>就在码头尽头（抛竿位左前方），点「卖鱼给渔夫」即可出售；WASD 或左下角摇杆走动，⟲⟳ 可 360° 转身：岸边<b>房子</b>商店 · 码头上的<b>黑衣人</b>交传说钥匙开船换钓点</li>
     </ul>
     <button id="startBtn" disabled>加载中…</button>
   </div>
 </div>
 <noscript>需要启用 JavaScript 才能游玩。</noscript>
-<script type="module" src="js/main.js?v=2"></script>
+<script type="module" src="js/main.js?v=3"></script>
 </body>
 </html>
