@@ -1,7 +1,7 @@
 // 游戏系统：经济（出售/商店）、经验等级、任务、选鱼
 import { SPECIES, RARITY, speciesById } from './fish.js';
-import { RODS, LINES, NETS, BAITS, LURES, RARITY_BASE, LEVEL_XP, MAX_LEVEL, DAILY_TEMPLATES, MAIN_QUESTS } from './data.js';
-import { writeSave } from './save.js';
+import { RODS, LINES, NETS, BAITS, LURES, RARITY_BASE, LEVEL_XP, MAX_LEVEL, DAILY_TEMPLATES, MAIN_QUESTS, PITY } from './data.js?v=4';
+import { writeSave } from './save.js?v=4';
 import { LOCATIONS, locationById, nextKeyIdFrom, mapStatus } from './locations.js';
 
 export function createSystems(save, hooks = {}) {
@@ -137,7 +137,21 @@ export function createSystems(save, hooks = {}) {
     save.location = id; S.persist(); return null;
   };
   S.mapStatus = (loc) => mapStatus(loc, save.unlockedLocations, save.keys);
-  S.pickFish = (mode, power) => {
+  // ---------- 传说保底 ----------
+  /** 当前钓点保底信息：n 已累计非传说条数，N 必出阈值 */
+  S.pityInfo = (locId = save.location) => {
+    const first = locId === 'lake' && !(save.legendAt && save.legendAt.lake) && !save.unlockedLocations.stream && !(save.keys && save.keys.stream);
+    const N = first ? PITY.first : PITY.normal;
+    const n = Math.min((save.pity && save.pity[locId]) || 0, N - 1);
+    return { n, N, first, left: N - n };
+  };
+  /** 第 n+1 条鱼出传说的最低概率：前半段几乎不变，后段快速上升，第 N 条必出 */
+  S.pityChance = (p0) => {
+    const { n, N } = S.pityInfo();
+    if (n >= N - 1) return 1;
+    return Math.max(p0, p0 + (1 - p0) * Math.pow(n / (N - 1), 3));
+  };
+  S.pickFish = (mode, power, opts = {}) => {
     const base = RARITY_BASE[mode];
     const mod = mode === 'lure' ? S.lure() : S.bait();
     const loc = S.location();
@@ -148,10 +162,21 @@ export function createSystems(save, hooks = {}) {
       const lw = loc.weights[s.id] !== undefined ? loc.weights[s.id] : 0.35; // 未点名的鱼少量出现
       return base[s.rarity] / counts[s.rarity] * rarMul[s.rarity] * (mod.rar[s.rarity] || 1) * (mod.attract[s.id] || 1) * lw;
     });
-    let r = Math.random() * weights.reduce((a, b) => a + b, 0), sp = pool[0];
-    for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) { sp = pool[i]; break; } }
-    const wf = Math.pow(Math.random(), 2.2);
-    return { sp, weight: sp.w[0] + (sp.w[1] - sp.w[0]) * wf, wf };
+    const total = weights.reduce((a, b) => a + b, 0);
+    const legW = pool.reduce((a, s, i) => a + (s.rarity === 'legend' ? weights[i] : 0), 0);
+    // 保底：先决定是否出传说，再在对应子池里按权重挑
+    let wantLegend = null, pL = legW / total;
+    if (legW > 0 && legW < total && !opts.noPity) {
+      pL = S.pityChance(legW / total);
+      wantLegend = Math.random() < pL;
+    }
+    const idx = pool.map((_, i) => i).filter(i => wantLegend === null || (pool[i].rarity === 'legend') === wantLegend);
+    let r = Math.random() * idx.reduce((a, i) => a + weights[i], 0), sp = pool[idx[0]];
+    for (const i of idx) { r -= weights[i]; if (r <= 0) { sp = pool[i]; break; } }
+    // 保底强制触发的新手传说：偏向小个体，竹竿也有机会拉上来
+    const forced = wantLegend && pL >= 0.5;
+    const wf = Math.pow(Math.random(), forced ? 3.2 : 2.2);
+    return { sp, weight: sp.w[0] + (sp.w[1] - sp.w[0]) * wf, wf, pity: forced };
   };
 
   // ---------- 渔获登记 ----------
@@ -164,6 +189,10 @@ export function createSystems(save, hooks = {}) {
     if (mode === 'lure') save.stats.lure++;
     if (sp.rarity !== 'common') save.stats.rareUp++;
     if (sp.rarity === 'legend') save.stats.legend++;
+    // 保底计数：非传说 +1；传说重置并记录该钓点已出过传说
+    save.pity = save.pity || {}; save.legendAt = save.legendAt || {};
+    if (sp.rarity === 'legend') { save.pity[save.location] = 0; save.legendAt[save.location] = true; }
+    else save.pity[save.location] = (save.pity[save.location] || 0) + 1;
     let keyDrop = null;
     if (sp.rarity === 'legend') {
       const kid = nextKeyIdFrom(save.location);

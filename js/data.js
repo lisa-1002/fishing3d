@@ -16,8 +16,8 @@ export const LINES = {
   titan:  { name: '钛合金线',  price: 1500, lvl: 5, max: 1.4,  desc: '极限强度，断线张力 +40%。' },
 };
 export const NETS = {
-  small: { name: '小号鱼护', price: 0,   lvl: 1, cap: 8,  desc: '能装 8 条鱼。' },
-  mid:   { name: '中号鱼护', price: 200, lvl: 2, cap: 16, desc: '能装 16 条鱼。' },
+  small: { name: '小号鱼护', price: 0,   lvl: 1, cap: 12, desc: '能装 12 条鱼。' },
+  mid:   { name: '中号鱼护', price: 200, lvl: 2, cap: 20, desc: '能装 20 条鱼。' },
   big:   { name: '大号鱼护', price: 700, lvl: 4, cap: 30, desc: '能装 30 条鱼。' },
 };
 // 台钓鱼饵（消耗品）：wait 等待时间倍率；attract 特定鱼种权重倍率；rar 稀有度倍率
@@ -41,6 +41,8 @@ export const RARITY_BASE = {
   float: { common: 62, rare: 27, epic: 9, legend: 2 },
   lure:  { common: 42, rare: 40, epic: 14, legend: 4 },
 };
+// 传说保底：某钓点连续 N 条非传说后必出传说（钓到传说即重置）；新手湖湾的第一条传说更快
+export const PITY = { normal: 25, first: 14 };
 // 累计经验阈值：LEVEL_XP[i] = 达到 i+1 级所需
 export const LEVEL_XP = [0, 60, 160, 320, 560, 900, 1400, 2100, 3000, 4200];
 export const MAX_LEVEL = LEVEL_XP.length;
