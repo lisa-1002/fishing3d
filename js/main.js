@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js';
 import { locationById } from './locations.js';
 import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails } from './fish.js';
-import { preloadHeroAssets } from './fish-hero-carp.js';
+import { preloadQuaterniusFish, tickFishAnim } from './fish-gltf.js';
 import { RODS, LURES, BAITS } from './data.js';
 import { loadSave } from './save.js';
 import { createSystems } from './systems.js';
@@ -54,8 +54,8 @@ function applyCurrentLocation() {
   world.applyTheme(loc.theme, renderer);
 }
 applyCurrentLocation();
-// 可选：放置 vendor/fish/carp.glb 后自动启用
-preloadHeroAssets().catch(() => {});
+// Quaternius CC0 鱼（失败时 buildFish 回退程序化网格）
+const fishAssetsReady = preloadQuaterniusFish();
 
 // ---------------- 鱼竿（可换外观、分段弯曲） ----------------
 const rodRig = new THREE.Group();
@@ -707,6 +707,7 @@ function updateFight(dt, time, f) {
     u.uAmp.value = 0.18;
     u.uSpeed.value = 18;
     u.uLeap.value = Math.sin(k * Math.PI); // 弓背
+    tickFishAnim(m, dt);
     if (k > 0.08 && k < 0.2 && !G.evt.splashOut) { G.evt.splashOut = true; spawnSplash(tackle.position, 50, 1.4); spawnRipple(tackle.position, 1.6); }
     if (k > 0.88 && !G.evt.splashed) { G.evt.splashed = true; spawnSplash(m.position, 55, 1.5); spawnRipple(m.position, 1.8); u.uLeap.value = 0; }
   }
@@ -926,6 +927,7 @@ function tick() {
       u.uAmp.value = lerp(u.uAmp.value, G.catchModel.userData.isHeroCarp ? 0.04 : 0.045, dt * 0.4);
       u.uSpeed.value = lerp(u.uSpeed.value, G.catchModel.userData.isHeroCarp ? 5.5 : 6.5, dt * 0.5);
       if (u.uFin) u.uFin.value = 1;
+      tickFishAnim(G.catchModel, dt);
       const baseY = G.catchModel.userData.isHeroCarp ? -0.55 : 0;
       G.catchModel.rotation.y = baseY + Math.sin(time * 0.65) * (G.catchModel.userData.isHeroCarp ? 0.35 : 0.55);
       G.catchModel.rotation.x = Math.sin(time * 0.9) * 0.06;
@@ -987,7 +989,11 @@ setTimeout(() => {
 }, 30);
 function genThumbsLater() {
   if (location.search.includes('nothumbs')) return;
-  const run = () => { try { thumbs = makeThumbnails(); } catch (e) { console.warn('缩略图生成失败', e); } };
+  const run = () => {
+    fishAssetsReady.then(() => {
+      try { thumbs = makeThumbnails(); } catch (e) { console.warn('缩略图生成失败', e); }
+    });
+  };
   if (window.requestIdleCallback) requestIdleCallback(run, { timeout: 15000 });
   else setTimeout(run, 10000);
 }
@@ -998,4 +1004,4 @@ $('startBtn').addEventListener('click', () => {
   setTimeout(genThumbsLater, 4000);
 });
 // 调试 / 自动化测试接口
-window.__game = { G, save, S, UI, startCast, onPress, onRelease, hookFish, landFish, setState, closeCard, twitch, speciesById, buildFish, SPECIES, applyCurrentLocation, tryInteract, talkToStranger, boatTravelTo, PLAYER, world, CAM_POS };
+window.__game = { G, save, S, UI, startCast, onPress, onRelease, hookFish, landFish, setState, closeCard, twitch, speciesById, buildFish, SPECIES, applyCurrentLocation, tryInteract, talkToStranger, boatTravelTo, PLAYER, world, CAM_POS, fishAssetsReady };

@@ -1,4 +1,4 @@
-// 英雄级鲤鱼 v3 —— 高规格程序化（可选加载 vendor/fish/carp.glb）
+// 英雄级鲤鱼程序化回退。正常路径由 js/fish-gltf.js 的 Quaternius GLB 接管。
 import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/addons/GLTFLoader.js';
 
