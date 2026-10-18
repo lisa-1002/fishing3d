@@ -468,7 +468,87 @@ addEventListener('keydown', e => {
   }
 });
 addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Space' || e.code === 'Enter') onRelease(); });
+function clearKeys() { for (const k of Object.keys(keys)) keys[k] = false; }
+addEventListener('blur', clearKeys);
+document.addEventListener('visibilitychange', () => { if (document.hidden) clearKeys(); });
 addEventListener('contextmenu', e => e.preventDefault());
+
+// ---------------- 虚拟摇杆 + 转向按钮 ----------------
+const joy = { active: false, nx: 0, ny: 0, turnL: false, turnR: false, pid: null };
+const joyPad = $('joyPad'), joyBase = $('joyBase'), joyKnob = $('joyKnob');
+const JOY_MAX = 40; // knob travel radius (px)
+function setJoyKnob(nx, ny) {
+  const m = Math.hypot(nx, ny) || 1;
+  const c = m > 1 ? 1 / m : 1;
+  joy.nx = nx * c; joy.ny = ny * c;
+  if (joyKnob) joyKnob.style.transform = `translate(${joy.nx * JOY_MAX}px, ${joy.ny * JOY_MAX}px)`;
+}
+function resetJoy() {
+  joy.active = false; joy.pid = null; joy.nx = 0; joy.ny = 0;
+  if (joyKnob) joyKnob.style.transform = 'translate(0,0)';
+}
+function joyFromEvent(e) {
+  const r = joyBase.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  setJoyKnob((e.clientX - cx) / JOY_MAX, (e.clientY - cy) / JOY_MAX);
+}
+if (joyPad) {
+  joyPad.addEventListener('pointerdown', e => { e.stopPropagation(); });
+  joyPad.addEventListener('pointerup', e => { e.stopPropagation(); });
+}
+if (joyBase) {
+  joyBase.addEventListener('pointerdown', e => {
+    e.preventDefault(); e.stopPropagation();
+    joy.active = true; joy.pid = e.pointerId;
+    try { joyBase.setPointerCapture(e.pointerId); } catch (_) {}
+    joyFromEvent(e);
+  });
+  joyBase.addEventListener('pointermove', e => {
+    if (!joy.active || e.pointerId !== joy.pid) return;
+    e.preventDefault(); e.stopPropagation();
+    joyFromEvent(e);
+  });
+  const endJoy = e => {
+    if (joy.pid !== null && e.pointerId !== joy.pid) return;
+    e.stopPropagation();
+    resetJoy();
+  };
+  joyBase.addEventListener('pointerup', endJoy);
+  joyBase.addEventListener('pointercancel', endJoy);
+}
+function bindTurn(btn, flag) {
+  if (!btn) return;
+  const down = e => {
+    e.preventDefault(); e.stopPropagation();
+    joy[flag] = true; btn.classList.add('held');
+    const pid = e.pointerId;
+    const up = ev => {
+      if (ev.pointerId !== pid) return;
+      joy[flag] = false; btn.classList.remove('held');
+      removeEventListener('pointerup', up, true);
+      removeEventListener('pointercancel', up, true);
+    };
+    addEventListener('pointerup', up, true);
+    addEventListener('pointercancel', up, true);
+  };
+  btn.addEventListener('pointerdown', down);
+}
+bindTurn($('joyTurnL'), 'turnL');
+bindTurn($('joyTurnR'), 'turnR');
+function syncJoyPad(show) {
+  if (!joyPad) return;
+  const hide = !show;
+  if (joyPad.classList.contains('hidden') === hide) return;
+  joyPad.classList.toggle('hidden', hide);
+  joyPad.setAttribute('aria-hidden', hide ? 'true' : 'false');
+  if (hide) {
+    resetJoy();
+    joy.turnL = false; joy.turnR = false;
+    const l = $('joyTurnL'), r = $('joyTurnR');
+    if (l) l.classList.remove('held');
+    if (r) r.classList.remove('held');
+  }
+}
 $('cardKeep').addEventListener('click', () => closeCard('keep'));
 $('cardSell').addEventListener('click', () => closeCard('sell'));
 $('cardRelease').addEventListener('click', () => closeCard('release'));
@@ -648,19 +728,26 @@ function tick() {
   const s = G.state, f = forward();
   // 瞄准：空闲走动时仅用方向键；抛竿等状态仍可用 A/D
   const canWalk = s === 'idle' && !UI.isOpen() && started;
+  syncJoyPad(canWalk);
   if (canWalk) {
-    if (keys.ArrowLeft) G.aim = clamp(G.aim + dt * 0.7, -1.2, 1.2);
-    if (keys.ArrowRight) G.aim = clamp(G.aim - dt * 0.7, -1.2, 1.2);
+    if (keys.ArrowLeft || joy.turnL) G.aim = clamp(G.aim + dt * 0.7, -1.2, 1.2);
+    if (keys.ArrowRight || joy.turnR) G.aim = clamp(G.aim - dt * 0.7, -1.2, 1.2);
     const fwdX = Math.sin(G.aim), fwdZ = -Math.cos(G.aim);
     let mx = 0, mz = 0;
     if (keys.KeyW) { mx += fwdX; mz += fwdZ; }
     if (keys.KeyS) { mx -= fwdX; mz -= fwdZ; }
     if (keys.KeyA) { mx -= fwdZ; mz += fwdX; }
     if (keys.KeyD) { mx += fwdZ; mz -= fwdX; }
+    if (joy.active && (joy.nx || joy.ny)) {
+      const fwd = -joy.ny, str = joy.nx; // stick up = forward
+      mx += fwdX * fwd + fwdZ * str;
+      mz += fwdZ * fwd - fwdX * str;
+    }
     if (mx || mz) {
       const len = Math.hypot(mx, mz) || 1;
-      PLAYER.x += (mx / len) * PLAYER.speed * dt;
-      PLAYER.z += (mz / len) * PLAYER.speed * dt;
+      const scale = Math.min(1, len); // analog magnitude from joystick
+      PLAYER.x += (mx / len) * scale * PLAYER.speed * dt;
+      PLAYER.z += (mz / len) * scale * PLAYER.speed * dt;
       // 限制在码头 + 岸边小屋一带
       PLAYER.x = clamp(PLAYER.x, -8, 12);
       PLAYER.z = clamp(PLAYER.z, DOCK_END_Z + 0.5, 42);
@@ -907,7 +994,7 @@ function genThumbsLater() {
 $('startBtn').addEventListener('click', () => {
   started = true; $('start').classList.add('hide');
   if (migrated) UI.toast(save.version >= 4 ? '存档已更新：钓点改为传说钥匙推进，进度已重置为湖湾' : '已从旧版本迁移存档，欢迎回来！', 3200);
-  else if (!save.catches) UI.toast('WASD 走动 · 房子开商店 · 渔夫卖鱼 · 先钓 3 条完成主线', 3600);
+  else if (!save.catches) UI.toast('摇杆/WASD 走动 · ⟲⟳ 转向 · 房子开商店 · 渔夫卖鱼 · 先钓 3 条完成主线', 3600);
   setTimeout(genThumbsLater, 4000);
 });
 // 调试 / 自动化测试接口
