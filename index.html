@@ -26,7 +26,8 @@
 
 <div id="menu">
   <button id="netBtn"><b>鱼护</b><small id="netCount">0/8</small></button>
-  <button id="shopBtn"><b>商店</b></button>
+  <!-- 出售仅渔夫；商店仅房子 -->
+  <button id="shopBtn" class="gated" title="去房子商店"><b>商店</b><small>去房子</small></button>
   <button id="questBtn"><b>任务</b><span id="questDot">0</span></button>
   <button id="equipBtn"><b>装备</b></button>
   <button id="mapBtn"><b>钓点</b></button>
@@ -61,7 +62,20 @@
 
 <button id="modeBtn"><b>台钓</b><small>切换露亚</small></button>
 <button id="actionBtn">按住抛竿</button>
+<button id="interactBtn" class="hidden">互动</button>
+<div id="interactHint" class="hidden"></div>
 <div id="toast"></div>
+<div id="dialogue" class="hidden">
+  <div class="d-box">
+    <div class="d-name" id="dialogueName">黑衣神秘人</div>
+    <div class="d-text" id="dialogueText"></div>
+    <div class="d-btns">
+      <button id="dialogueOk" class="primary">……</button>
+      <button id="dialogueCancel" class="ghost hidden">下次再说</button>
+    </div>
+  </div>
+</div>
+<div id="boatFade" class="hidden"><span id="boatFadeText">开船中…</span></div>
 
 <div id="card">
   <div class="c-inner">
@@ -96,7 +110,7 @@
       <li><b>台钓</b>：按住蓄力、松开抛竿。浮漂轻点是“试口”，整个沉下去（黑漂）的瞬间提竿 = <b>完美提竿</b></li>
       <li><b>露亚</b>：抛出路亚饵后按住收线、松开停顿、轻点抽竿，把速度控制在绿色区间诱鱼攻击，咬饵立刻刺鱼</li>
       <li><b>搏鱼</b>：张力保持绿色；甩头、冲刺时松手卸力，跃水时别松线</li>
-      <li>鱼放进<b>鱼护</b>后出售换金币，去<b>商店</b>升级装备，完成<b>任务</b>拿奖励</li>
+      <li>WASD 走动：<b>房子</b>商店 · <b>渔夫</b>卖鱼 · <b>黑衣人</b>交传说钥匙开船换钓点</li>
     </ul>
     <button id="startBtn" disabled>加载中…</button>
   </div>

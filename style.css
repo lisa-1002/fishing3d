@@ -190,3 +190,45 @@ body.busy #modeBtn { opacity: .35; }
 .mapCard .meta{font-size:12px;opacity:.7}
 .mapCard .act{margin-top:8px}
 .mapCard button{pointer-events:auto}
+
+#menu button.gated { opacity: .72; }
+#menu button.gated small { display:block; font-size:10px; opacity:.85; font-weight:400; }
+#interactBtn {
+  position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%);
+  z-index: 12; padding: 12px 22px; border-radius: 999px; border: none;
+  background: linear-gradient(180deg,#ffe082,#f9a825); color:#2a1a00; font-weight:700;
+  font-size: 15px; box-shadow: 0 4px 16px rgba(0,0,0,.35); cursor: pointer;
+}
+#interactBtn.hidden, #interactHint.hidden { display: none !important; }
+#interactHint {
+  position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%);
+  z-index: 11; padding: 8px 14px; border-radius: 10px;
+  background: rgba(0,0,0,.55); color: #fff; font-size: 13px; pointer-events: none;
+  text-shadow: 0 1px 2px #000; white-space: nowrap;
+}
+
+.mapCard.haskey { border-color: #ffd54f; box-shadow: 0 0 0 1px rgba(255,213,79,.35) inset; }
+#dialogue {
+  position: fixed; inset: 0; z-index: 40; display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(0,0,0,.45); padding: 24px;
+}
+#dialogue.hidden { display: none !important; }
+#dialogue .d-box {
+  width: min(480px, 100%); background: linear-gradient(180deg,#1e2834,#141a22);
+  border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 18px 20px 16px;
+  color: #e8eef4; box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+#dialogue .d-name { font-size: 13px; color: #9aa8b8; margin-bottom: 8px; letter-spacing: .05em; }
+#dialogue .d-text { font-size: 16px; line-height: 1.55; min-height: 3.2em; margin-bottom: 14px; }
+#dialogue .d-btns { display: flex; gap: 10px; justify-content: flex-end; }
+#dialogue button { padding: 10px 16px; border-radius: 10px; border: none; cursor: pointer; font-weight: 600; }
+#dialogue button.primary { background: linear-gradient(180deg,#5c6bc0,#3949ab); color: #fff; }
+#dialogue button.ghost { background: rgba(255,255,255,.08); color: #cfd8dc; }
+#dialogue button.hidden { display: none !important; }
+#boatFade {
+  position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+  background: #05080c; color: #dce6f0; font-size: 22px; font-weight: 600; letter-spacing: .12em;
+  transition: opacity .4s ease;
+}
+#boatFade.hidden { display: none !important; }
+#boatFade.fadeout { opacity: 0; }
