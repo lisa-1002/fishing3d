@@ -621,6 +621,102 @@ export function createWorld(scene, renderer, Q) {
     scene.add(dock);
   }
 
+  // ---------- 岸边小屋（商店）+ 渔夫（出售）----------
+  {
+    const wood = makeWoodTexture();
+    const house = new THREE.Group();
+    const wallMat = new THREE.MeshStandardMaterial({ map: wood, color: 0xc4a574, roughness: 0.9 });
+    const darkMat = new THREE.MeshStandardMaterial({ map: wood, color: 0x5a4030, roughness: 0.92 });
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0x6a3030, roughness: 0.85 });
+    const hx = 7.5, hz = 36;
+    const hy = Math.max(DECK_Y, heightAt(hx, hz)) + 0.05;
+    // 墙体
+    const base = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.6, 4.2), wallMat);
+    base.position.set(hx, hy + 1.3, hz); base.castShadow = base.receiveShadow = true; house.add(base);
+    // 屋顶
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(4.2, 1.6, 4), roofMat);
+    roof.position.set(hx, hy + 3.4, hz); roof.rotation.y = Math.PI / 4; roof.castShadow = true; house.add(roof);
+    // 门（交互点）
+    const door = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.9, 0.12), darkMat);
+    door.position.set(hx - 0.2, hy + 0.95, hz - 2.15); door.castShadow = true; house.add(door);
+    // 门框亮色提示
+    const doorTrim = new THREE.Mesh(new THREE.BoxGeometry(1.3, 2.1, 0.08), new THREE.MeshStandardMaterial({ color: 0x8a6038, roughness: 0.8 }));
+    doorTrim.position.set(hx - 0.2, hy + 0.95, hz - 2.1); house.add(doorTrim);
+    // 窗户
+    const win = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.08), new THREE.MeshStandardMaterial({ color: 0x88c8e8, roughness: 0.3, metalness: 0.2 }));
+    win.position.set(hx + 1.5, hy + 1.5, hz - 2.12); house.add(win);
+    // 门口木阶
+    const step = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.18, 0.7), darkMat);
+    step.position.set(hx - 0.2, hy + 0.05, hz - 2.6); house.add(step);
+    // 挂牌
+    const sign = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.5, 0.06), new THREE.MeshStandardMaterial({ color: 0xd8b070, roughness: 0.7 }));
+    sign.position.set(hx - 0.2, hy + 2.5, hz - 2.18); house.add(sign);
+    scene.add(house);
+
+    // 渔夫（码头中段）
+    const fisher = new THREE.Group();
+    const skin = new THREE.MeshStandardMaterial({ color: 0xe8c4a0, roughness: 0.7 });
+    const cloth = new THREE.MeshStandardMaterial({ color: 0x2a5080, roughness: 0.85 });
+    const pants = new THREE.MeshStandardMaterial({ color: 0x3a3428, roughness: 0.9 });
+    const hatMat = new THREE.MeshStandardMaterial({ color: 0xc9a227, roughness: 0.6 });
+    const fx = -2.2, fz = 14;
+    const fy = DECK_Y;
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 0.7, 10), cloth);
+    torso.position.set(0, 1.05, 0); fisher.add(torso);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), skin);
+    head.position.set(0, 1.55, 0); fisher.add(head);
+    const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.22, 0.16, 12), hatMat);
+    hat.position.set(0, 1.72, 0); fisher.add(hat);
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.04, 12), hatMat);
+    brim.position.set(0, 1.64, 0); fisher.add(brim);
+    const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.1, 0.7, 8), pants);
+    legL.position.set(-0.12, 0.4, 0); fisher.add(legL);
+    const legR = legL.clone(); legR.position.x = 0.12; fisher.add(legR);
+    const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.55, 8), cloth);
+    armL.position.set(-0.32, 1.05, 0); armL.rotation.z = 0.3; fisher.add(armL);
+    const armR = armL.clone(); armR.position.x = 0.32; armR.rotation.z = -0.3; fisher.add(armR);
+    // 小筐道具
+    const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.18, 0.28, 10, 1, true),
+      new THREE.MeshStandardMaterial({ color: 0x8a6a40, side: THREE.DoubleSide, roughness: 0.9 }));
+    basket.position.set(0.55, 0.35, 0.15); fisher.add(basket);
+    fisher.position.set(fx, fy, fz);
+    fisher.rotation.y = 0.4;
+    fisher.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    scene.add(fisher);
+
+    // 黑衣神秘人（钥匙 / 开船）
+    const stranger = new THREE.Group();
+    const coat = new THREE.MeshStandardMaterial({ color: 0x1a1a22, roughness: 0.92 });
+    const hood = new THREE.MeshStandardMaterial({ color: 0x121218, roughness: 0.95 });
+    const shadowFace = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 1 });
+    const sx = 2.8, sz = 22;
+    const sy = DECK_Y;
+    const storso = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 1.0, 10), coat);
+    storso.position.set(0, 1.15, 0); stranger.add(storso);
+    const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.7, 10), coat);
+    skirt.position.set(0, 0.55, 0); skirt.rotation.x = Math.PI; stranger.add(skirt);
+    const shead = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), shadowFace);
+    shead.position.set(0, 1.75, 0); stranger.add(shead);
+    const shood = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), hood);
+    shood.position.set(0, 1.78, 0); stranger.add(shood);
+    const cape = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.08), coat);
+    cape.position.set(0, 1.2, 0.22); cape.rotation.x = 0.15; stranger.add(cape);
+    const armSL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.6, 8), coat);
+    armSL.position.set(-0.38, 1.15, 0); armSL.rotation.z = 0.25; stranger.add(armSL);
+    const armSR = armSL.clone(); armSR.position.x = 0.38; armSR.rotation.z = -0.25; stranger.add(armSR);
+    stranger.position.set(sx, sy, sz);
+    stranger.rotation.y = -0.6;
+    stranger.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    scene.add(stranger);
+    world.stranger = stranger;
+
+    world.interact = {
+      shop: { x: hx - 0.2, z: hz - 2.7, r: 3.2, label: '按 E / 点击 进入房子商店', kind: 'shop' },
+      sell: { x: fx, z: fz, r: 2.8, label: '按 E / 点击 找渔夫卖鱼', kind: 'sell' },
+      stranger: { x: sx, z: sz, r: 3.0, label: '按 E / 点击 与黑衣人交谈', kind: 'stranger' },
+    };
+  }
+
   // ---------- 小船 ----------
   {
     const shape = new THREE.Shape();
@@ -630,7 +726,7 @@ export function createWorld(scene, renderer, Q) {
     const hull = new THREE.Mesh(hullGeo, new THREE.MeshStandardMaterial({ color: 0x7c3a28, roughness: 0.7 }));
     hull.scale.set(1, 0.6, 1); hull.position.y = 0.25;
     const boat = new THREE.Group(); boat.add(hull);
-    boat.position.set(-38, 0.15, -70); boat.rotation.y = 0.7;
+    boat.position.set(-12, 0.15, -18); boat.rotation.y = 0.9; world.boatHome = boat.position.clone();
     scene.add(boat); world.boat = boat;
   }
 
@@ -689,6 +785,38 @@ export function createWorld(scene, renderer, Q) {
       }
       attr.needsUpdate = true;
     }
+  };
+
+
+  world.playBoatTravel = (duration = 2.2) => {
+    if (!world.boat) return Promise.resolve();
+    const boat = world.boat;
+    const start = boat.position.clone();
+    const mid = start.clone().add(new THREE.Vector3(-25, 0, -40));
+    const t0 = performance.now();
+    return new Promise(resolve => {
+      const step = () => {
+        const u = Math.min(1, (performance.now() - t0) / (duration * 1000));
+        const e = u * u * (3 - 2 * u);
+        boat.position.lerpVectors(start, mid, e);
+        boat.rotation.z = Math.sin(e * Math.PI * 4) * 0.06;
+        boat.rotation.y = 0.9 + e * 0.4;
+        if (u < 1) requestAnimationFrame(step);
+        else {
+          // 驶回停泊点
+          const t1 = performance.now();
+          const back = () => {
+            const v = Math.min(1, (performance.now() - t1) / 900);
+            boat.position.lerpVectors(mid, world.boatHome || start, v);
+            boat.rotation.y = 0.9;
+            if (v < 1) requestAnimationFrame(back);
+            else resolve();
+          };
+          requestAnimationFrame(back);
+        }
+      };
+      requestAnimationFrame(step);
+    });
   };
 
   const _billDummy = new THREE.Object3D();

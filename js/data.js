@@ -67,5 +67,5 @@ export const MAIN_QUESTS = [
   { id: 'm8', name: '湖之传说',   type: 'legend',       target: 1,    text: '钓到任意一条传说鱼',        reward: { coins: 1000, line: 'pe' } },
   { id: 'm9', name: '图鉴达人',   type: 'species',      target: 20,   text: '收集 20 种不同的鱼',       reward: { coins: 1500, bait: { koifood: 2 } } },
   { id: 'm10', name: '图鉴大师',  type: 'species',      target: 30,   text: '收集全部 30 种鱼',         reward: { coins: 4000, rod: 'goldrod' } },
-  { id: 'm11', name: '四海钓客',  type: 'locations',    target: 5,    text: '解锁全部 5 个钓点',        reward: { coins: 800, line: 'pe' } },
+  { id: 'm11', name: '钥匙旅人',  type: 'locations',    target: 5,    text: '经黑衣人开船，踏足全部 5 个钓点', reward: { coins: 800, line: 'pe' } },
 ];

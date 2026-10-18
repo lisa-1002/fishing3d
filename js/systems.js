@@ -2,7 +2,7 @@
 import { SPECIES, RARITY, speciesById } from './fish.js';
 import { RODS, LINES, NETS, BAITS, LURES, RARITY_BASE, LEVEL_XP, MAX_LEVEL, DAILY_TEMPLATES, MAIN_QUESTS } from './data.js';
 import { writeSave } from './save.js';
-import { LOCATIONS, locationById, canAffordUnlock } from './locations.js';
+import { LOCATIONS, locationById, nextKeyIdFrom, mapStatus } from './locations.js';
 
 export function createSystems(save, hooks = {}) {
   const S = {};
@@ -111,24 +111,32 @@ export function createSystems(save, hooks = {}) {
   // ---------- 选鱼 ----------
   S.location = () => locationById[save.location] || LOCATIONS[0];
   S.unlockedCount = () => Object.keys(save.unlockedLocations || {}).filter(k => save.unlockedLocations[k]).length;
-  S.unlockLocation = (id) => {
-    const loc = locationById[id]; if (!loc) return '未知钓点';
-    if (save.unlockedLocations[id]) { save.location = id; S.persist(); return null; }
-    const chk = canAffordUnlock(loc, S.level(), save.coins, save.unlockedLocations);
-    if (!chk.ok) return chk.reason;
-    if (loc.unlock.coins > 0) {
-      if (save.coins < loc.unlock.coins) return `需 ${loc.unlock.coins} 金币`;
-      save.coins -= loc.unlock.coins;
-    }
+  S.hasKey = (id) => !!(save.keys && save.keys[id]);
+  S.heldKeys = () => Object.keys(save.keys || {}).filter(k => save.keys[k]);
+  /** 黑衣人收钥匙解锁钓点；返回 { ok, msg, locId } */
+  S.deliverKey = (id) => {
+    const loc = locationById[id];
+    if (!loc) return { ok: false, msg: '未知水域' };
+    if (save.unlockedLocations[id]) return { ok: false, msg: '已经去过那里了' };
+    if (!S.hasKey(id)) return { ok: false, msg: '你还没有那把钥匙' };
+    delete save.keys[id];
     save.unlockedLocations[id] = true;
     save.location = id;
     S.persist();
+    return { ok: true, msg: `开船前往「${loc.name}」`, locId: id, loc };
+  };
+  /** 持有的第一把未解锁钥匙（给对话用） */
+  S.nextDeliverableKey = () => {
+    for (const id of S.heldKeys()) {
+      if (!save.unlockedLocations[id]) return id;
+    }
     return null;
   };
   S.setLocation = (id) => {
-    if (!save.unlockedLocations[id]) return '尚未解锁';
+    if (!save.unlockedLocations[id]) return '尚未解锁：需传说钥匙交给黑衣人';
     save.location = id; S.persist(); return null;
   };
+  S.mapStatus = (loc) => mapStatus(loc, save.unlockedLocations, save.keys);
   S.pickFish = (mode, power) => {
     const base = RARITY_BASE[mode];
     const mod = mode === 'lure' ? S.lure() : S.bait();
@@ -156,15 +164,25 @@ export function createSystems(save, hooks = {}) {
     if (mode === 'lure') save.stats.lure++;
     if (sp.rarity !== 'common') save.stats.rareUp++;
     if (sp.rarity === 'legend') save.stats.legend++;
+    let keyDrop = null;
+    if (sp.rarity === 'legend') {
+      const kid = nextKeyIdFrom(save.location);
+      if (kid && !save.unlockedLocations[kid] && !save.keys[kid]) {
+        save.keys[kid] = true;
+        keyDrop = { id: kid, name: locationById[kid].keyName || '传说钥匙', dest: locationById[kid].name };
+      } else if (kid && save.keys[kid]) {
+        keyDrop = { id: kid, name: locationById[kid].keyName || '传说钥匙', dest: locationById[kid].name, already: true };
+      }
+    }
     const fish = { uid: save.uidSeq++, id: sp.id, w: Math.round(weight * 100) / 100, perfect: !!perfect, keep: false, t: Date.now() };
     const value = S.price(fish);
-    const bonus = Math.max(1, Math.round(value * 0.1));          // 小额渔获奖励
+    const bonus = Math.max(1, Math.round(value * 0.1));
     save.coins += bonus;
     const xp = Math.round((4 + sp.price * 0.25) * (perfect ? 1.3 : 1));
     S.progress('catch', { sp, weight, mode });
     S.addXp(xp);
     S.persist();
-    return { fish, value, bonus, xp, isNew, isRecord };
+    return { fish, value, bonus, xp, isNew, isRecord, keyDrop };
   };
   S.notePerfect = () => { save.stats.perfect++; S.progress('perfect', 1); S.persist(); };
 

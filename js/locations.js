@@ -1,11 +1,15 @@
-// 钓点 / 地图：视觉主题 + 鱼种权重 + 解锁条件
+// 钓点 / 地图：视觉主题 + 鱼种权重 + 传说钥匙推进
+// 解锁链：湖湾 → 溪流 → 湿地 → 夜钓 → 大坝（当前图钓到传说 → 获得下一站钥匙 → 交给黑衣人开船）
+export const LOCATION_ORDER = ['lake', 'stream', 'marsh', 'night', 'dam'];
+
 export const LOCATIONS = [
   {
     id: 'lake',
     name: '宁静湖湾',
     tag: '新手',
     desc: '开阔湖面，水草丰美。适合台钓入门，鲤鲫草鲢都有机会。',
-    unlock: { lvl: 1, coins: 0 },
+    keyName: null,
+    nextId: 'stream',
     waitMul: 1.0,
     biteWin: 1.0,
     theme: {
@@ -15,7 +19,6 @@ export const LOCATIONS = [
       hemiSky: 0xbcd4ff, hemiGround: 0x4a4030,
       terrainMul: [1, 1, 1], reedBoost: 1, night: false,
     },
-    // 权重倍率（未列出的默认 1；0 = 该点不出现）
     weights: {
       crucian: 1.4, tilapia: 1.2, carp: 1.3, grass: 1.2, silvercarp: 1.1, bighead: 1.0, bream: 1.1, mudcarp: 1.2,
       perch: 1.0, mandarin: 0.9, goldcarp: 1.0, koi: 1.0, sturgeon: 0.7,
@@ -27,7 +30,8 @@ export const LOCATIONS = [
     name: '溪流浅滩',
     tag: '清水',
     desc: '清澈见底的山溪浅滩，白条马口活跃，适合轻量露亚。',
-    unlock: { lvl: 2, coins: 80 },
+    keyName: '溪流钥匙',
+    nextId: 'marsh',
     waitMul: 0.75,
     biteWin: 1.15,
     theme: {
@@ -40,7 +44,7 @@ export const LOCATIONS = [
     weights: {
       horsemouth: 2.5, bleak: 2.2, crucian: 0.8, trout: 1.8, culter: 1.2,
       perch: 1.1, mandarin: 0.6, carp: 0.3, grass: 0.2, snakehead: 0.2,
-      loach: 1.4, catfish: 0.3, pike: 0.4, tilapia: 0.5,
+      loach: 1.4, catfish: 0.3, stur: 0.4, tilapia: 0.5,
       gancyu: 0.5, arowana: 0.3,
     },
   },
@@ -49,7 +53,8 @@ export const LOCATIONS = [
     name: '芦苇湿地',
     tag: '浑水',
     desc: '芦苇丛生、水质浑浊。鲶鱼黄颡泥鳅出没，鲤草也多。',
-    unlock: { lvl: 3, coins: 200 },
+    keyName: '湿地钥匙',
+    nextId: 'night',
     waitMul: 1.25,
     biteWin: 0.9,
     theme: {
@@ -63,7 +68,6 @@ export const LOCATIONS = [
       carp: 1.6, grass: 1.3, catfish: 2.2, yellowcat: 2.0, loach: 2.0, eel: 1.6,
       snakehead: 1.8, softshell: 1.5, crucian: 1.2, bream: 1.0, tilapia: 0.8,
       mandarin: 1.1, goldcarp: 0.8, perch: 0.5, trout: 0.2, bleak: 0.3,
-      softshell: 1.5,
     },
   },
   {
@@ -71,7 +75,8 @@ export const LOCATIONS = [
     name: '深潭夜钓',
     tag: '夜间',
     desc: '月色下的深潭。鲶鳝甲鱼活跃，偶遇大型夜行掠食者。',
-    unlock: { lvl: 4, coins: 450 },
+    keyName: '夜潭钥匙',
+    nextId: 'dam',
     waitMul: 1.4,
     biteWin: 0.85,
     theme: {
@@ -93,7 +98,8 @@ export const LOCATIONS = [
     name: '水库大坝',
     tag: '巨物',
     desc: '高坝深水区，鲢鳙青鱼成群，大型掠食鱼潜伏。挑战最高。',
-    unlock: { lvl: 5, coins: 900 },
+    keyName: '大坝钥匙',
+    nextId: null,
     waitMul: 1.15,
     biteWin: 0.95,
     theme: {
@@ -114,16 +120,15 @@ export const LOCATIONS = [
 
 export const locationById = Object.fromEntries(LOCATIONS.map(l => [l.id, l]));
 
-export function isLocationUnlocked(loc, level, coins, unlockedSet) {
-  if (unlockedSet && unlockedSet[loc.id]) return true;
-  const u = loc.unlock;
-  return level >= u.lvl && coins >= 0; // 购买用 coins 另算
+/** 当前地图钓到传说时，掉落哪一把钥匙（下一站 id） */
+export function nextKeyIdFrom(currentLocId) {
+  const loc = locationById[currentLocId];
+  return loc?.nextId || null;
 }
 
-export function canAffordUnlock(loc, level, coins, unlockedSet) {
-  if (unlockedSet && unlockedSet[loc.id]) return { ok: true, reason: 'owned' };
-  const u = loc.unlock;
-  if (level < u.lvl) return { ok: false, reason: `需达到 Lv.${u.lvl}` };
-  if (coins < u.coins) return { ok: false, reason: `需 ${u.coins} 金币` };
-  return { ok: true, reason: 'buy' };
+export function mapStatus(loc, unlockedSet, keys) {
+  if (unlockedSet && unlockedSet[loc.id]) return { state: 'owned', label: '已解锁' };
+  if (loc.id === 'lake') return { state: 'owned', label: '已解锁' };
+  if (keys && keys[loc.id]) return { state: 'hasKey', label: '已有钥匙 · 交给黑衣人' };
+  return { state: 'locked', label: '需要传说钥匙 · 交给黑衣人' };
 }

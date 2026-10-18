@@ -1,7 +1,7 @@
 // 界面：HUD、鱼护、商店、任务、装备、图鉴
 import { SPECIES, RARITY, speciesById } from './fish.js';
 import { RODS, LINES, NETS, BAITS, LURES, MAIN_QUESTS, MAX_LEVEL, LEVEL_XP } from './data.js';
-import { LOCATIONS, canAffordUnlock } from './locations.js';
+import { LOCATIONS, mapStatus } from './locations.js';
 
 const $ = id => document.getElementById(id);
 const fmtW = w => (w >= 10 ? w.toFixed(1) : w.toFixed(2)) + 'kg';
@@ -10,7 +10,7 @@ const methodName = m => ({ float: '台钓', lure: '露亚', both: '台钓/露亚
 export function createUI(save, S, ctx) {
   const UI = {};
   const panel = $('panel'), pTitle = $('panelTitle'), pTabs = $('panelTabs'), pBody = $('panelBody'), pFoot = $('panelFoot');
-  let current = null, tab = null;
+  let current = null, tab = null, allowSell = false;
 
   let toastTimer = 0;
   UI.toast = (msg, ms = 1900) => { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms); };
@@ -36,11 +36,24 @@ export function createUI(save, S, ctx) {
     if (current) UI.render();
   };
 
-  UI.open = (name, t) => {
+  UI.open = (name, t, opts = {}) => {
     if (!ctx.canOpenPanel()) { UI.toast('请先完成当前这一竿'); return; }
+    if (name === 'shop' && !opts.fromNpc) {
+      UI.toast('去房子商店'); return;
+    }
+    if (name === 'net') {
+      allowSell = !!opts.allowSell;
+      if (!allowSell && opts.fromNpc === false) {
+        // HUD 鱼护：仅查看
+      }
+    } else {
+      allowSell = false;
+    }
     current = name; tab = t || ({ shop: 'rod', quest: 'daily', equip: 'gear' })[name] || null;
     panel.classList.add('show'); UI.render();
   };
+  UI.openShop = () => UI.open('shop', 'rod', { fromNpc: true });
+  UI.openSell = () => UI.open('net', null, { fromNpc: true, allowSell: true });
   UI.close = () => { current = null; panel.classList.remove('show'); };
   UI.isOpen = () => !!current;
   $('panelClose').addEventListener('click', UI.close);
@@ -65,22 +78,36 @@ export function createUI(save, S, ctx) {
 
   // ---------- 鱼护 ----------
   function renderNet() {
-    pTitle.innerHTML = `鱼护 <small>${save.net.length} / ${S.netCap()}</small>`;
+    pTitle.innerHTML = allowSell
+      ? `渔夫收购 <small>${save.net.length} / ${S.netCap()}</small>`
+      : `鱼护 <small>${save.net.length} / ${S.netCap()}</small>`;
     tabs([]);
-    if (!save.net.length) { pBody.innerHTML = '<div class="empty">鱼护空空如也，快去钓鱼吧！</div>'; return; }
+    if (!save.net.length) {
+      pBody.innerHTML = allowSell
+        ? '<div class="empty">鱼护空空，没有可卖的鱼。</div>'
+        : '<div class="empty">鱼护空空如也，快去钓鱼吧！<br><small style="opacity:.7">出售请走到码头渔夫处</small></div>';
+      return;
+    }
     const list = [...save.net].sort((a, b) => S.price(b) - S.price(a));
-    pBody.innerHTML = `<div class="list">${list.map(f => {
+    pBody.innerHTML = (allowSell ? '' : '<div class="sec">查看鱼获 · 出售请找码头渔夫</div>') + `<div class="list">${list.map(f => {
       const sp = speciesById[f.id];
+      const sellBtn = allowSell
+        ? `<button class="sell" data-act="sell" data-id="${f.uid}">出售 <b>${S.price(f)}</b></button>`
+        : `<button class="sell ghost" disabled title="去找渔夫">—</button>`;
       return `<div class="row" style="--rc:${RARITY[sp.rarity].color}">
         <div class="thumb">${thumb(f.id)}</div>
         <div class="info"><div class="nm">${sp.name} ${rarTag(sp)} ${f.perfect ? '<span class="ptag">完美</span>' : ''}</div><div class="sub">${fmtW(f.w)}</div></div>
         <button class="keep ${f.keep ? 'on' : ''}" data-act="keep" data-id="${f.uid}">${f.keep ? '★ 保留' : '☆ 保留'}</button>
-        <button class="sell" data-act="sell" data-id="${f.uid}">出售 <b>${S.price(f)}</b></button>
+        ${sellBtn}
       </div>`;
     }).join('')}</div>`;
-    const sellable = save.net.filter(f => !f.keep);
-    const total = sellable.reduce((a, f) => a + S.price(f), 0);
-    pFoot.innerHTML = `<button class="big" data-act="sellAll" ${sellable.length ? '' : 'disabled'}>全部出售（不含保留）<b>+${total} 金币</b></button>`;
+    if (allowSell) {
+      const sellable = save.net.filter(f => !f.keep);
+      const total = sellable.reduce((a, f) => a + S.price(f), 0);
+      pFoot.innerHTML = `<button class="big" data-act="sellAll" ${sellable.length ? '' : 'disabled'}>全部出售（不含保留）<b>+${total} 金币</b></button>`;
+    } else {
+      pFoot.innerHTML = `<div class="sec" style="text-align:center;padding:8px">走到码头渔夫旁按 E 卖鱼</div>`;
+    }
   }
 
   // ---------- 商店 ----------
@@ -95,7 +122,7 @@ export function createUI(save, S, ctx) {
   }
   const bar = (label, v, max) => `<span class="st"><i>${label}</i><em><u style="width:${Math.min(100, v / max * 100)}%"></u></em></span>`;
   function renderShop() {
-    pTitle.innerHTML = `商店 <small><span class="ico coin"></span>${save.coins}</small>`;
+    pTitle.innerHTML = `房子商店 <small><span class="ico coin"></span>${save.coins}</small>`;
     tabs([['rod', '鱼竿'], ['line', '鱼线'], ['bait', '鱼饵'], ['lure', '路亚饵'], ['net', '鱼护']]);
     let html = '';
     if (tab === 'rod') {
@@ -169,21 +196,29 @@ export function createUI(save, S, ctx) {
   function renderMap() {
     pTitle.innerHTML = '选择钓点';
     tabs([]);
-    const lvl = S.level();
-    pBody.innerHTML = `<div class="sec">抛竿途中无法切换钓点</div><div class="mapGrid">` + LOCATIONS.map(loc => {
-      const owned = !!save.unlockedLocations[loc.id];
+    const keys = S.heldKeys();
+    const keyNames = keys.map(id => {
+      const L = LOCATIONS.find(l => l.id === id);
+      return L ? L.keyName : id;
+    });
+    const keyLine = keys.length
+      ? `持有钥匙：${keyNames.join('、')} · 交给码头黑衣人开船`
+      : '当前钓点钓到「传说」→ 钥匙 → 交给黑衣人开船';
+    pBody.innerHTML = `<div class="sec">抛竿途中无法切换 · ${keyLine}</div><div class="mapGrid">` + LOCATIONS.map(loc => {
+      const st = S.mapStatus(loc);
+      const owned = st.state === 'owned';
       const cur = save.location === loc.id;
-      const chk = canAffordUnlock(loc, lvl, save.coins, save.unlockedLocations);
       let act = '';
       if (cur) act = `<span class="meta">当前钓点</span>`;
-      else if (owned) act = `<button data-act="travel" data-id="${loc.id}" class="primary">前往</button>`;
-      else if (chk.ok) act = `<button data-act="unlockLoc" data-id="${loc.id}" class="gold">解锁${loc.unlock.coins ? ` · ${loc.unlock.coins} 金币` : '（免费）'}</button>`;
-      else act = `<span class="meta">🔒 ${chk.reason}${loc.unlock.coins ? ` · 另需 ${loc.unlock.coins} 金币` : ''}</span>`;
-      return `<div class="mapCard ${cur ? 'on' : ''} ${owned ? '' : 'locked'}">
+      else if (owned) act = `<button data-act="travel" data-id="${loc.id}" class="primary">开船前往</button>`;
+      else if (st.state === 'hasKey') act = `<span class="meta">🔑 ${st.label}</span>`;
+      else act = `<span class="meta">🔒 ${st.label}</span>`;
+      const unlockMeta = loc.id === 'lake' ? '起点钓点' : (loc.keyName ? `需要「${loc.keyName}」` : '需要传说钥匙');
+      return `<div class="mapCard ${cur ? 'on' : ''} ${owned ? '' : 'locked'} ${st.state === 'hasKey' ? 'haskey' : ''}">
         <span class="tag">${loc.tag}</span>
         <div><b>${loc.name}</b></div>
         <div class="desc">${loc.desc}</div>
-        <div class="meta">解锁：Lv.${loc.unlock.lvl}${loc.unlock.coins ? ` + ${loc.unlock.coins} 金币` : ''}</div>
+        <div class="meta">${unlockMeta}</div>
         <div class="act">${act}</div>
       </div>`;
     }).join('') + '</div>';
@@ -208,8 +243,14 @@ export function createUI(save, S, ctx) {
     const tb = e.target.closest('[data-tab]'); if (tb) { tab = tb.dataset.tab; UI.render(); return; }
     const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
     const { act, id, cat, kind } = b.dataset;
-    if (act === 'sell') { const n = S.sell([+id]); UI.toast(`出售成功 +${n} 金币`); ctx.coinFx(); }
-    if (act === 'sellAll') { const n = S.sell(save.net.filter(f => !f.keep).map(f => f.uid)); UI.toast(`全部出售 +${n} 金币`); ctx.coinFx(); }
+    if (act === 'sell') {
+      if (!allowSell) { UI.toast('请走到码头渔夫处出售'); return; }
+      const n = S.sell([+id]); UI.toast(`出售成功 +${n} 金币`); ctx.coinFx();
+    }
+    if (act === 'sellAll') {
+      if (!allowSell) { UI.toast('请走到码头渔夫处出售'); return; }
+      const n = S.sell(save.net.filter(f => !f.keep).map(f => f.uid)); UI.toast(`全部出售 +${n} 金币`); ctx.coinFx();
+    }
     if (act === 'keep') S.toggleKeep(+id);
     if (act === 'buy') { const err = S.buy(cat, id); UI.toast(err || '购买成功！'); }
     if (act === 'claimDaily' || act === 'claimMain') {
@@ -220,15 +261,13 @@ export function createUI(save, S, ctx) {
       if (kind === 'mode') { if (!S.setMode(id)) UI.toast('还没有露亚竿'); }
       else S.equip(kind, id);
     }
-    if (act === 'unlockLoc') {
-      const err = S.unlockLocation(id);
-      if (err) UI.toast(err);
-      else { UI.toast(`已解锁并前往「${S.location().name}」`); ctx.onLocationChange && ctx.onLocationChange(); UI.close(); }
-    }
     if (act === 'travel') {
-      const err = S.setLocation(id);
-      if (err) UI.toast(err);
-      else { UI.toast(`已抵达「${S.location().name}」`); ctx.onLocationChange && ctx.onLocationChange(); UI.close(); }
+      if (ctx.travelTo) ctx.travelTo(id);
+      else {
+        const err = S.setLocation(id);
+        if (err) UI.toast(err);
+        else { UI.toast(`已抵达「${S.location().name}」`); ctx.onLocationChange && ctx.onLocationChange(); UI.close(); }
+      }
     }
     UI.refreshHud();
   });

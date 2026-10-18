@@ -1,6 +1,6 @@
 // 静湖垂钓 3D v2 —— 渲染、输入、台钓/露亚双玩法状态机
 import * as THREE from 'three';
-import { createWorld, DECK_Y, DOCK_END_Z } from './world.js';
+import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js';
 import { locationById } from './locations.js';
 import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails } from './fish.js';
 import { preloadHeroAssets } from './fish-hero-carp.js';
@@ -44,6 +44,9 @@ const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.12, 2
 camera.rotation.order = 'YXZ';
 const CAM_POS = new THREE.Vector3(0, DECK_Y + 1.65, DOCK_END_Z + 3.0);
 camera.position.copy(CAM_POS);
+const PLAYER = { x: 0, z: DOCK_END_Z + 3.0, eye: DECK_Y + 1.65, speed: 3.6 };
+let nearInteract = null; // 'shop' | 'sell' | null
+
 scene.add(camera);
 const world = createWorld(scene, renderer, Q);
 function applyCurrentLocation() {
@@ -219,7 +222,37 @@ function updateFx(dt) {
 // ---------------- UI ----------------
 const $ = id => document.getElementById(id);
 let thumbs = {};
-UI = createUI(save, S, { thumbs: () => thumbs, canOpenPanel: () => G.state === 'idle', coinFx: () => { $('coinChip').classList.remove('pop'); void $('coinChip').offsetWidth; $('coinChip').classList.add('pop'); }, onLocationChange: () => { applyCurrentLocation(); UI.refreshHud(); } });
+async function boatTravelTo(id, { unlockMsg } = {}) {
+  if (G.state !== 'idle') { UI.toast('请先完成当前这一竿'); return false; }
+  const loc = locationById[id];
+  if (!loc) return false;
+  if (!save.unlockedLocations[id]) { UI.toast('尚未解锁'); return false; }
+  UI.close();
+  const fade = $('boatFade'), ft = $('boatFadeText');
+  fade.classList.remove('hidden', 'fadeout');
+  ft.textContent = unlockMsg || `开船前往「${loc.name}」…`;
+  const sail = world.playBoatTravel ? world.playBoatTravel(1.6) : Promise.resolve();
+  await Promise.race([Promise.all([sail, new Promise(r => setTimeout(r, 1400))]), new Promise(r => setTimeout(r, 3500))]);
+  S.setLocation(id);
+  applyCurrentLocation();
+  // 复位到码头抛竿位
+  PLAYER.x = 0; PLAYER.z = DOCK_END_Z + 3.0;
+  CAM_POS.set(PLAYER.x, PLAYER.eye, PLAYER.z);
+  G.aim = 0;
+  fade.classList.add('fadeout');
+  await new Promise(r => setTimeout(r, 450));
+  fade.classList.add('hidden'); fade.classList.remove('fadeout');
+  UI.toast(`已抵达「${loc.name}」`, 2200);
+  UI.refreshHud();
+  return true;
+}
+UI = createUI(save, S, {
+  thumbs: () => thumbs,
+  canOpenPanel: () => G.state === 'idle',
+  coinFx: () => { $('coinChip').classList.remove('pop'); void $('coinChip').offsetWidth; $('coinChip').classList.add('pop'); },
+  onLocationChange: () => { applyCurrentLocation(); UI.refreshHud(); },
+  travelTo: (id) => boatTravelTo(id),
+});
 const ui = {
   hint: $('hint'), power: $('powerWrap'), powerFill: $('powerFill'),
   reel: $('reelWrap'), tension: $('tensionFill'), progress: $('progressFill'), reelMsg: $('reelMsg'),
@@ -349,7 +382,16 @@ function landFish() {
   c.querySelector('.c-name').textContent = sp.name;
   c.querySelector('.c-weight').textContent = weight >= 10 ? `${weight.toFixed(1)} kg` : `${weight.toFixed(2)} kg`;
   c.querySelector('.c-value').textContent = `估价 ${info.value} 金币`;
-  c.querySelector('.c-bonus').textContent = `渔获奖励 +${info.bonus} 金币 · +${info.xp} 经验${G.perfect ? '（完美加成）' : ''}`;
+  let bonusTxt = `渔获奖励 +${info.bonus} 金币 · +${info.xp} 经验${G.perfect ? '（完美加成）' : ''}`;
+  if (info.keyDrop && !info.keyDrop.already) bonusTxt += ` · 🔑 获得「${info.keyDrop.name}」`;
+  else if (info.keyDrop?.already) bonusTxt += ` · 已持有「${info.keyDrop.name}」`;
+  c.querySelector('.c-bonus').textContent = bonusTxt;
+  if (info.keyDrop) {
+    setTimeout(() => {
+      if (info.keyDrop.already) UI.toast(`已持有「${info.keyDrop.name}」，去交给黑衣人开船`, 2800);
+      else UI.toast(`🔑 获得「${info.keyDrop.name}」！去码头找黑衣人开船前往「${info.keyDrop.dest}」`, 3600);
+    }, 900);
+  }
   c.querySelector('.c-desc').textContent = sp.desc;
   c.querySelector('.c-tag').textContent = info.isNew ? '★ 新鱼种！已收入图鉴' : info.isRecord ? '▲ 刷新最重纪录！' : `第 ${save.collection[sp.id].count} 次捕获`;
   const full = S.netFull();
@@ -430,12 +472,71 @@ addEventListener('contextmenu', e => e.preventDefault());
 $('cardKeep').addEventListener('click', () => closeCard('keep'));
 $('cardSell').addEventListener('click', () => closeCard('sell'));
 $('cardRelease').addEventListener('click', () => closeCard('release'));
-for (const [btn, name] of [['netBtn', 'net'], ['shopBtn', 'shop'], ['questBtn', 'quest'], ['equipBtn', 'equip'], ['mapBtn', 'map'], ['dexBtn', 'dex']])
+$('netBtn').addEventListener('click', () => UI.open('net', null, { allowSell: false }));
+$('shopBtn').addEventListener('click', () => UI.toast('去房子商店'));
+for (const [btn, name] of [['questBtn', 'quest'], ['equipBtn', 'equip'], ['mapBtn', 'map'], ['dexBtn', 'dex']])
   $(btn).addEventListener('click', () => UI.open(name));
+function showDialogue({ name = '黑衣神秘人', text, okText = '……', cancelText = null }) {
+  return new Promise(resolve => {
+    const box = $('dialogue'), nm = $('dialogueName'), tx = $('dialogueText');
+    const ok = $('dialogueOk'), cancel = $('dialogueCancel');
+    nm.textContent = name; tx.textContent = text;
+    ok.textContent = okText;
+    if (cancelText) { cancel.textContent = cancelText; cancel.classList.remove('hidden'); }
+    else cancel.classList.add('hidden');
+    box.classList.remove('hidden');
+    const done = (v) => {
+      box.classList.add('hidden');
+      ok.onclick = null; cancel.onclick = null;
+      resolve(v);
+    };
+    ok.onclick = () => done(true);
+    cancel.onclick = () => done(false);
+  });
+}
+
+async function talkToStranger() {
+  if (G.state !== 'idle') return;
+  const keyId = S.nextDeliverableKey();
+  if (!keyId) {
+    if (S.unlockedCount() >= 5) {
+      await showDialogue({ text: '五湖四海，你都去过了。钥匙的故事到此为止。', okText: '告辞' });
+    } else {
+      await showDialogue({
+        text: '传说之鱼身上藏着下一处水域的钥匙。钓到它，再来找我——我会开船送你去。',
+        okText: '明白了',
+      });
+    }
+    return;
+  }
+  const dest = locationById[keyId];
+  const yes = await showDialogue({
+    text: `你手上的「${dest.keyName}」……我认得。交给我，船就开往「${dest.name}」。`,
+    okText: '交出钥匙',
+    cancelText: '下次再说',
+  });
+  if (!yes) return;
+  const r = S.deliverKey(keyId);
+  if (!r.ok) { UI.toast(r.msg); return; }
+  await showDialogue({ text: `很好。上船吧——「${dest.name}」在等你。`, okText: '开船' });
+  await boatTravelTo(keyId, { unlockMsg: `钥匙转动……开船前往「${dest.name}」` });
+}
+
+function tryInteract() {
+  if (G.state !== 'idle' || UI.isOpen()) return;
+  if ($('dialogue') && !$('dialogue').classList.contains('hidden')) return;
+  if (nearInteract === 'shop') { UI.openShop(); UI.toast('欢迎光临房子商店'); }
+  else if (nearInteract === 'sell') { UI.openSell(); UI.toast('渔夫：有什么好货？'); }
+  else if (nearInteract === 'stranger') talkToStranger();
+}
+$('interactBtn').addEventListener('click', e => { e.stopPropagation(); tryInteract(); });
+addEventListener('keydown', e => {
+  if (e.code === 'KeyE' && !e.repeat) tryInteract();
+});
 $('modeBtn').addEventListener('click', () => {
   if (G.state !== 'idle') { UI.toast('请先完成当前这一竿'); return; }
   const target = save.equip.mode === 'lure' ? 'float' : 'lure';
-  if (!S.setMode(target)) UI.toast('还没有露亚竿：完成主线「初次垂钓」或去商店购买');
+  if (!S.setMode(target)) UI.toast('还没有露亚竿：完成主线或去房子商店购买');
   else { UI.toast(target === 'lure' ? `切换为露亚：${S.rod().name} + ${S.lure().name}` : `切换为台钓：${S.rod().name}`); setState('idle'); }
 });
 const qBtn = $('qualityBtn');
@@ -545,8 +646,57 @@ function tick() {
   G.t += dt;
   world.update(dt, time, camera);
   const s = G.state, f = forward();
-  if (keys.KeyA || keys.ArrowLeft) G.aim = clamp(G.aim + dt * 0.6, -0.6, 0.6);
-  if (keys.KeyD || keys.ArrowRight) G.aim = clamp(G.aim - dt * 0.6, -0.6, 0.6);
+  // 瞄准：空闲走动时仅用方向键；抛竿等状态仍可用 A/D
+  const canWalk = s === 'idle' && !UI.isOpen() && started;
+  if (canWalk) {
+    if (keys.ArrowLeft) G.aim = clamp(G.aim + dt * 0.7, -1.2, 1.2);
+    if (keys.ArrowRight) G.aim = clamp(G.aim - dt * 0.7, -1.2, 1.2);
+    const fwdX = Math.sin(G.aim), fwdZ = -Math.cos(G.aim);
+    let mx = 0, mz = 0;
+    if (keys.KeyW) { mx += fwdX; mz += fwdZ; }
+    if (keys.KeyS) { mx -= fwdX; mz -= fwdZ; }
+    if (keys.KeyA) { mx -= fwdZ; mz += fwdX; }
+    if (keys.KeyD) { mx += fwdZ; mz -= fwdX; }
+    if (mx || mz) {
+      const len = Math.hypot(mx, mz) || 1;
+      PLAYER.x += (mx / len) * PLAYER.speed * dt;
+      PLAYER.z += (mz / len) * PLAYER.speed * dt;
+      // 限制在码头 + 岸边小屋一带
+      PLAYER.x = clamp(PLAYER.x, -8, 12);
+      PLAYER.z = clamp(PLAYER.z, DOCK_END_Z + 0.5, 42);
+      // 码头较窄
+      if (PLAYER.z < 30) PLAYER.x = clamp(PLAYER.x, -1.1, 1.1);
+    }
+    const groundY = Math.max(DECK_Y, heightAt(PLAYER.x, PLAYER.z) + 0.15);
+    PLAYER.eye = groundY + 1.55;
+    CAM_POS.set(PLAYER.x, PLAYER.eye, PLAYER.z);
+  } else {
+    if (keys.KeyA || keys.ArrowLeft) G.aim = clamp(G.aim + dt * 0.6, -0.6, 0.6);
+    if (keys.KeyD || keys.ArrowRight) G.aim = clamp(G.aim - dt * 0.6, -0.6, 0.6);
+  }
+
+  // 交互距离检测
+  nearInteract = null;
+  if (canWalk && world.interact) {
+    let best = null, bestD = 1e9;
+    for (const [k, it] of Object.entries(world.interact)) {
+      const d = Math.hypot(PLAYER.x - it.x, PLAYER.z - it.z);
+      if (d < it.r && d < bestD) { bestD = d; best = k; }
+    }
+    nearInteract = best;
+    const hint = $('interactHint'), ib = $('interactBtn');
+    if (nearInteract) {
+      const it = world.interact[nearInteract];
+      hint.textContent = it.label; hint.classList.remove('hidden');
+      ib.textContent = nearInteract === 'shop' ? '进入商店' : nearInteract === 'stranger' ? '与黑衣人交谈' : '卖鱼给渔夫';
+      ib.classList.remove('hidden');
+    } else {
+      hint.classList.add('hidden'); ib.classList.add('hidden');
+    }
+  } else {
+    $('interactHint').classList.add('hidden');
+    $('interactBtn').classList.add('hidden');
+  }
 
   G.shake = Math.max(0, G.shake - dt * 2);
   camera.position.set(CAM_POS.x + Math.sin(time * 0.7) * 0.01, CAM_POS.y + Math.sin(time * 1.3) * 0.012, CAM_POS.z);
@@ -756,9 +906,9 @@ function genThumbsLater() {
 }
 $('startBtn').addEventListener('click', () => {
   started = true; $('start').classList.add('hide');
-  if (migrated) UI.toast('已从旧版本迁移存档，欢迎回来！', 2600);
-  else if (!save.catches) UI.toast('新手提示：先用台钓钓 3 条鱼，完成主线可获得露亚竿', 3200);
+  if (migrated) UI.toast(save.version >= 4 ? '存档已更新：钓点改为传说钥匙推进，进度已重置为湖湾' : '已从旧版本迁移存档，欢迎回来！', 3200);
+  else if (!save.catches) UI.toast('WASD 走动 · 房子开商店 · 渔夫卖鱼 · 先钓 3 条完成主线', 3600);
   setTimeout(genThumbsLater, 4000);
 });
 // 调试 / 自动化测试接口
-window.__game = { G, save, S, UI, startCast, onPress, onRelease, hookFish, landFish, setState, closeCard, twitch, speciesById, buildFish, SPECIES, applyCurrentLocation };
+window.__game = { G, save, S, UI, startCast, onPress, onRelease, hookFish, landFish, setState, closeCard, twitch, speciesById, buildFish, SPECIES, applyCurrentLocation, tryInteract, talkToStranger, boatTravelTo, PLAYER, world, CAM_POS };
