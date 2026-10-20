@@ -1,14 +1,14 @@
 // 静湖垂钓 3D v4 —— 渲染、输入、台钓/露亚双玩法状态机、音效、新手教学
 import * as THREE from 'three';
-import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=5';
+import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=6';
 import { locationById } from './locations.js';
-import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails } from './fish.js?v=5';
-import { preloadQuaterniusFish, tickFishAnim } from './fish-gltf.js?v=5';
-import { RODS, LURES, BAITS } from './data.js?v=5';
-import { loadSave } from './save.js?v=5';
-import { createSystems } from './systems.js?v=5';
-import { createUI } from './ui.js?v=5';
-import { createAudio } from './audio.js?v=5';
+import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails } from './fish.js?v=6';
+import { preloadQuaterniusFish, tickFishAnim } from './fish-gltf.js?v=6';
+import { RODS, LURES, BAITS } from './data.js?v=6';
+import { loadSave } from './save.js?v=6';
+import { createSystems } from './systems.js?v=6';
+import { createUI } from './ui.js?v=6';
+import { createAudio } from './audio.js?v=6';
 import { clamp, lerp, rand } from './util.js';
 
 // ---------------- 画质 ----------------
@@ -653,7 +653,7 @@ function tryInteract() {
   if (G.state !== 'idle' || UI.isOpen()) return;
   if ($('dialogue') && !$('dialogue').classList.contains('hidden')) return;
   if (nearInteract === 'shop') { UI.openShop(); UI.toast('欢迎光临房子商店'); }
-  else if (nearInteract === 'sell') { UI.openSell(); UI.toast('渔夫：有什么好货？'); }
+  else if (nearInteract === 'sell') { UI.openSell(); UI.toast('老余：哟，今天钓到啥好货了？'); }
   else if (nearInteract === 'stranger') talkToStranger();
 }
 // 互动按钮：只用 click（触屏 tap 也会触发 click）。不在 pointerup 里打开面板，
@@ -832,7 +832,7 @@ function tick() {
     if (nearInteract) {
       const it = world.interact[nearInteract];
       hint.textContent = it.label; hint.classList.remove('hidden');
-      let label = nearInteract === 'shop' ? '进入商店' : nearInteract === 'stranger' ? '与黑衣人交谈' : '卖鱼给渔夫';
+      let label = nearInteract === 'shop' ? '进入商店' : nearInteract === 'stranger' ? '与黑衣人交谈' : '卖鱼给老余';
       // NPC 不在画面里时加方向箭头（渔夫站在抛竿位左手边）
       tmpV.set(it.x, DECK_Y + 1.2, it.z).project(camera);
       if (tmpV.z > 1 || Math.abs(tmpV.x) > 1) {
@@ -1077,7 +1077,7 @@ $('startBtn').addEventListener('click', () => {
   if (!wantTut && localStorage.getItem(TUT_KEY) !== 'done') localStorage.setItem(TUT_KEY, 'done'); // 老玩家不再弹教学
   if (migrated) UI.toast(save.version >= 4 ? '存档已更新：钓点改为传说钥匙推进，进度已重置为湖湾' : '已从旧版本迁移存档，欢迎回来！', 3200);
   if (wantTut) tutStart();
-  else if (!migrated && !save.catches) UI.toast('渔夫在你左后方，点「卖鱼给渔夫」出售 · 摇杆/WASD 走动 · ⟲⟳ 转身 · 房子在岸边', 3600);
+  else if (!migrated && !save.catches) UI.toast('老余（渔具店老板）在你左后方，点「卖鱼给老余」出售 · 摇杆/WASD 走动 · ⟲⟳ 转身 · 房子在岸边', 3600);
   setTimeout(genThumbsLater, 4000);
 });
 // 玩法说明（可折叠，保留旧版说明文字）
@@ -1108,7 +1108,7 @@ const TUT_TEXT = {
   watch: () => '盯住<b>浮漂</b>（圆圈标记处）。轻轻点动是鱼在试口，<b>先别动</b>…',
   bite: () => isMobile ? '浮漂整个沉下去了——<b>黑漂</b>！快<b>点一下</b>按钮提竿！' : '浮漂整个沉下去了——<b>黑漂</b>！快按<b>空格</b>或点击提竿！',
   reel: () => isMobile ? '<b>按住</b>按钮收线；张力变红就<b>松手</b>卸力，进度条满了鱼就上来了' : '<b>按住空格/鼠标</b>收线；张力变红就<b>松手</b>卸力，进度条满了鱼就上来了',
-  done: () => '钓到啦！🎉 新手奖励已发放。点「放入鱼护」收下，攒够了卖给<b>左后方的渔夫</b>（点「卖鱼给渔夫」）',
+  done: () => '钓到啦！🎉 新手奖励已发放。点「放入鱼护」收下，攒够了卖给<b>左后方的老余</b>（点「卖鱼给老余」）',
 };
 const TUT_ORDER = ['move', 'charge', 'release', 'watch', 'bite', 'reel', 'done'];
 function tutSet(step) {
@@ -1150,7 +1150,7 @@ function tutFinish(skipped) {
     // 跳过时若还在走位，直接站到钓位
     if (G.state === 'idle') { PLAYER.x = 0; PLAYER.z = DOCK_END_Z + 3.0; G.aim = 0; }
     UI.toast('已跳过教学 · 随时可在开始界面「玩法说明」里重玩', 2600);
-  } else UI.toast('教学完成！渔夫在你左后方 · 钓到传说鱼可获得下一钓点的钥匙', 3400);
+  } else UI.toast('教学完成！老余（渔具店老板）在你左后方 · 钓到传说鱼可获得下一钓点的钥匙', 3400);
 }
 $('tutSkip').addEventListener('pointerdown', e => e.stopPropagation());
 $('tutSkip').addEventListener('click', e => { e.stopPropagation(); tutFinish(true); });
