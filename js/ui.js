@@ -1,6 +1,6 @@
 // 界面：HUD、鱼护、商店、任务、装备、图鉴
-import { SPECIES, RARITY, speciesById } from './fish.js?v=5';
-import { RODS, LINES, NETS, BAITS, LURES, MAIN_QUESTS, MAX_LEVEL, LEVEL_XP } from './data.js?v=5';
+import { SPECIES, RARITY, speciesById } from './fish.js?v=6';
+import { RODS, LINES, NETS, BAITS, LURES, MAIN_QUESTS, MAX_LEVEL, LEVEL_XP } from './data.js?v=6';
 import { LOCATIONS, mapStatus } from './locations.js';
 
 const $ = id => document.getElementById(id);
@@ -86,7 +86,7 @@ export function createUI(save, S, ctx) {
   // ---------- 鱼护 ----------
   function renderNet() {
     pTitle.innerHTML = allowSell
-      ? `渔夫收购 <small>${save.net.length} / ${S.netCap()}</small>`
+      ? `老余收购 <small>${save.net.length} / ${S.netCap()}</small>`
       : `鱼护 <small>${save.net.length} / ${S.netCap()}</small>`;
     tabs([]);
     if (!save.net.length) {

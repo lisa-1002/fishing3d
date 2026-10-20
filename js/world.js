@@ -4,6 +4,7 @@ import { Water } from '../vendor/addons/Water.js';
 import { Sky } from '../vendor/addons/Sky.js';
 import { mergeGeometries } from '../vendor/addons/BufferGeometryUtils.js';
 import { fbm, vnoise, smooth, rand } from './util.js';
+import { buildLaoYu } from './npc-laoyu.js?v=6';
 
 export const LAKE_CENTER = new THREE.Vector2(0, -320);
 export const DECK_Y = 0.9;
@@ -673,38 +674,17 @@ export function createWorld(scene, renderer, Q) {
 
     // 渔夫：站在码头尽头左侧，抛竿位就在交互范围内，开局就能看到并直接卖鱼
     // （旧位置 x=-2.2,z=14 在码头外的水面上且位于出生点身后，手机上转不过身、也很难走进交互半径）
-    const fisher = new THREE.Group();
-    const skin = new THREE.MeshStandardMaterial({ color: 0xe8c4a0, roughness: 0.7 });
-    const cloth = new THREE.MeshStandardMaterial({ color: 0x2a5080, roughness: 0.85 });
-    const pants = new THREE.MeshStandardMaterial({ color: 0x3a3428, roughness: 0.9 });
-    const hatMat = new THREE.MeshStandardMaterial({ color: 0xc9a227, roughness: 0.6 });
+    // v6：程序化「老余」角色（马甲、渔夫帽、杆秤、保温箱），见 npc-laoyu.js
     // v4：手机竖屏视野窄，旧位置（抛竿位正前方偏左 0.75m）会挡住左侧 1/3 画面、名牌被切。
     // 改为站在抛竿位左后方约 3m 的码头边缘：开局不挡视线，转身能看到完整的人和名牌；交互半径 4m 覆盖抛竿位，「卖鱼给渔夫」按钮一直可点。
     const fx = -1.1, fz = DOCK_END_Z + 6.0;
     const fy = DECK_Y;
-    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 0.7, 10), cloth);
-    torso.position.set(0, 1.05, 0); fisher.add(torso);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), skin);
-    head.position.set(0, 1.55, 0); fisher.add(head);
-    const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.22, 0.16, 12), hatMat);
-    hat.position.set(0, 1.72, 0); fisher.add(hat);
-    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.04, 12), hatMat);
-    brim.position.set(0, 1.64, 0); fisher.add(brim);
-    const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.1, 0.7, 8), pants);
-    legL.position.set(-0.12, 0.4, 0); fisher.add(legL);
-    const legR = legL.clone(); legR.position.x = 0.12; fisher.add(legR);
-    const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.55, 8), cloth);
-    armL.position.set(-0.32, 1.05, 0); armL.rotation.z = 0.3; fisher.add(armL);
-    const armR = armL.clone(); armR.position.x = 0.32; armR.rotation.z = -0.3; fisher.add(armR);
-    // 小筐道具
-    const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.18, 0.28, 10, 1, true),
-      new THREE.MeshStandardMaterial({ color: 0x8a6a40, side: THREE.DoubleSide, roughness: 0.9 }));
-    basket.position.set(0.55, 0.35, 0.15); fisher.add(basket);
+    const fisher = buildLaoYu();
     fisher.position.set(fx, fy, fz);
-    fisher.rotation.y = -0.6; // 侧身朝向码头中央 / 抛竿位
-    const fTag = makeNameTag('渔夫', '收鱼 · 卖鱼', '#ffd54f'); fTag.position.set(0, 2.15, 0); fisher.add(fTag);
-    fisher.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    fisher.rotation.y = Math.PI - 0.6; // 侧身朝向码头中央 / 抛竿位
+    const fTag = makeNameTag('老余', '湖渔铺 · 收鱼', '#ffd54f'); fTag.position.set(0, 2.15, 0); fisher.add(fTag);
     scene.add(fisher);
+    world.fisher = fisher;
 
     // 黑衣神秘人（钥匙 / 开船）
     const stranger = new THREE.Group();
@@ -735,7 +715,7 @@ export function createWorld(scene, renderer, Q) {
 
     world.interact = {
       shop: { x: hx - 0.2, z: hz - 2.7, r: 3.2, label: '按 E / 点击 进入房子商店', kind: 'shop' },
-      sell: { x: fx, z: fz, r: 4.0, label: '按 E / 点击 找渔夫卖鱼', kind: 'sell' },
+      sell: { x: fx, z: fz, r: 4.0, label: '按 E / 点击 找老余卖鱼', kind: 'sell' },
       stranger: { x: sx, z: sz, r: 3.0, label: '按 E / 点击 与黑衣人交谈', kind: 'stranger' },
     };
   }
@@ -846,6 +826,7 @@ export function createWorld(scene, renderer, Q) {
   let _billAcc = 0;
   world.update = (dt, t, camera) => {
     water.material.uniforms.time.value += dt * 0.55;
+    if (world.fisher) world.fisher.userData.update(dt, t);
     if (world.boat) { world.boat.rotation.z = Math.sin(t * 0.8) * 0.03; world.boat.position.y = 0.12 + Math.sin(t * 1.1) * 0.04; }
     // 远距树广告牌朝向相机（限频）
     _billAcc += dt;
