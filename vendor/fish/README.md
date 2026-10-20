@@ -1,18 +1,26 @@
-# 鱼类模型（Quaternius，CC0）
+# 鱼类第三方资产说明
 
-游戏渔获、图鉴缩略图和掠食鱼跃水使用下列 GLB。许可为 **CC0 1.0**（公有领域）。CC0 不要求署名，这里留一行。
+本目录预留用于托管 CC0 / 公有领域的鲤鱼或锦鲤 GLB 与贴图。
 
-- 作者：Quaternius
-- 包：Animated Cute Fish / Poly Pizza Animated Fish Bundle
-- https://quaternius.com/packs/cutefish.html
-- https://poly.pizza/bundle/Animated-Fish-Bundle-44zhHN1UbT
+## 检索结果（2026-10-17）
+已检索并尝试下载：
+- Sketchfab **CC0 Carp, Cyprinus carpio**（ffish.asia）— 许可证符合，但需登录 Sketchfab 才能下载 GLB，自动化环境无法拉取。
+- Quaternius / Poly Pizza **Koi (CC0)** — 页面存在，直链 403/404。
+- Polyy.AI itch.io Fish Pack（含 koi，CC0）— 需人工从 itch 下载。
+- Khronos Sample **BarramundiFish** — 可下载且许可宽松，但是**鲈形目**而非鲤科，外形不符，未采用。
 
-| 文件 | 对应鱼种 |
-|---|---|
-| `Koi.glb` | 默认（鲫鱼、锦鲤王，以及未单独指定的鱼种） |
-| `Goldfish.glb` | 鲤鱼、黄金鲤 |
-| `ArmoredCatfish.glb` | 鲶鱼、黄颡鱼 |
+因此英雄鲤仍使用 `js/fish-hero-carp.js` 的高规格程序化管线。若你手动下载了 CC0 鲤/锦鲤 `.glb`，可放到本目录并命名 `carp.glb`，游戏会优先尝试加载（见 fish-hero-carp.js）。
 
-加载与朝向见 `js/fish-gltf.js`。源模型头朝 +Z、节点缩放 100、体长约 5.2–5.8；运行时绕 Y 转到头朝 +X，再按体长归一化到 1。
+## 许可
+程序化贴图与几何为本项目原创。若将来放入第三方 GLB，请在此文件注明作者、链接与许可证。
 
-GLB 加载失败时，`js/fish.js` 回退到程序化网格（英雄鲤见 `js/fish-hero-carp.js`）。
+
+## 启用外部网格
+将 `carp.glb` 放到本目录后，在浏览器控制台执行：
+```js
+localStorage.setItem("fishing3d_carp_glb", "1"); location.reload();
+```
+
+
+## 2026-10-20 更新：写实鱼模型
+`js/fish-gltf.js` 现在加载 `vendor/fish/real/` 下 8 个 CC0 写实模型（带贴图），映射到 28 个物种（黄鳝、甲鱼仍为程序化网格）。来源与许可见 `real/CREDITS.md`。旧的 Quaternius Koi/Goldfish/ArmoredCatfish 不再加载，仅保留作历史文件。

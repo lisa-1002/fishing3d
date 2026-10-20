@@ -1,6 +1,6 @@
 // 界面：HUD、鱼护、商店、任务、装备、图鉴
-import { SPECIES, RARITY, speciesById } from './fish.js';
-import { RODS, LINES, NETS, BAITS, LURES, MAIN_QUESTS, MAX_LEVEL, LEVEL_XP } from './data.js?v=4';
+import { SPECIES, RARITY, speciesById } from './fish.js?v=5';
+import { RODS, LINES, NETS, BAITS, LURES, MAIN_QUESTS, MAX_LEVEL, LEVEL_XP } from './data.js?v=5';
 import { LOCATIONS, mapStatus } from './locations.js';
 
 const $ = id => document.getElementById(id);
