@@ -1,14 +1,14 @@
 // 静湖垂钓 3D v4 —— 渲染、输入、台钓/露亚双玩法状态机、音效、新手教学
 import * as THREE from 'three';
-import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=4';
+import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=5';
 import { locationById } from './locations.js';
-import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails } from './fish.js';
-import { preloadQuaterniusFish, tickFishAnim } from './fish-gltf.js';
-import { RODS, LURES, BAITS } from './data.js?v=4';
-import { loadSave } from './save.js?v=4';
-import { createSystems } from './systems.js?v=4';
-import { createUI } from './ui.js?v=4';
-import { createAudio } from './audio.js?v=4';
+import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails } from './fish.js?v=5';
+import { preloadQuaterniusFish, tickFishAnim } from './fish-gltf.js?v=5';
+import { RODS, LURES, BAITS } from './data.js?v=5';
+import { loadSave } from './save.js?v=5';
+import { createSystems } from './systems.js?v=5';
+import { createUI } from './ui.js?v=5';
+import { createAudio } from './audio.js?v=5';
 import { clamp, lerp, rand } from './util.js';
 
 // ---------------- 画质 ----------------
