@@ -412,6 +412,7 @@ body.busy #modeBtn { opacity: .35; }
 #start h1 { font-size: clamp(46px, 13vw, 76px); letter-spacing: .16em; margin: 14px 0 0; padding-left: .16em; color: #fff8e0;
   text-shadow: 0 0 24px rgba(255,200,80,.55), 0 4px 18px rgba(0,0,0,.5); animation: fadeSlideUp .8s ease .4s both; }
 #start .sub { color: rgba(255,255,255,.75); font-size: 15px; letter-spacing: .3em; margin: 6px 0 30px; animation: fadeSlideUp .8s ease .6s both; }
+#start .author { color: #fff8e0; font-size: 14px; letter-spacing: .18em; margin: -12px 0 18px; text-shadow: 0 1px 2px rgba(0,0,0,.65), 0 0 10px rgba(0,20,40,.45); animation: fadeSlideUp .8s ease .7s both; }
 #startBtn { margin-top: 0; min-width: 220px; font-size: 22px; padding: 15px 40px; border-radius: 32px; letter-spacing: .1em;
   background: linear-gradient(180deg, #ffd960, #f0a020); color: #3a2200; box-shadow: 0 6px 26px rgba(255,180,40,.45), inset 0 1px 0 rgba(255,255,255,.6);
   animation: fadeSlideUp .8s ease .8s both; transition: transform .15s; }
