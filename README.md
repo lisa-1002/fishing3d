@@ -1,6 +1,6 @@
 # 静湖垂钓 3D（v2）
 
-一款基于 **Three.js** 的 3D 写实风格钓鱼网页游戏（在线试玩：https://lisa-1002.github.io/fishing3d/ ），手机（触屏）和电脑（鼠标/键盘）都能玩。纯静态站点，无需构建，Three.js 已本地化放在 `vendor/`，国内离线环境也能运行。
+一款基于 **Three.js** 的 3D 写实风格钓鱼网页游戏（在线试玩：[GitHub Pages](https://lisa-1002.github.io/fishing3d/) · [itch.io](https://lisa-1002.itch.io/quiet-lake-fishing-3d)），手机（触屏）和电脑（鼠标/键盘）都能玩。纯静态站点，无需构建，Three.js 已本地化放在 `vendor/`，国内离线环境也能运行。
 
 作者：**刘子峻**。原创代码与程序化美术见根目录 `LICENSE`；第三方素材见 `CREDITS.md`。
 
