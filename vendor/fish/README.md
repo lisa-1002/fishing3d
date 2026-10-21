@@ -1,26 +1,39 @@
 # 鱼类第三方资产说明
 
-本目录预留用于托管 CC0 / 公有领域的鲤鱼或锦鲤 GLB 与贴图。
+## 当前加载
 
-## 检索结果（2026-10-17）
-已检索并尝试下载：
-- Sketchfab **CC0 Carp, Cyprinus carpio**（ffish.asia）— 许可证符合，但需登录 Sketchfab 才能下载 GLB，自动化环境无法拉取。
-- Quaternius / Poly Pizza **Koi (CC0)** — 页面存在，直链 403/404。
-- Polyy.AI itch.io Fish Pack（含 koi，CC0）— 需人工从 itch 下载。
-- Khronos Sample **BarramundiFish** — 可下载且许可宽松，但是**鲈形目**而非鲤科，外形不符，未采用。
+`js/fish-gltf.js` 加载 `real/` 下 8 个写实 GLB（带贴图），映射到 28 个物种。黄鳝、甲鱼没有对应模型，仍用程序化网格。来源、AI 披露与许可见 [`real/CREDITS.md`](real/CREDITS.md) 与仓库根目录 [`CREDITS.md`](../../CREDITS.md)。
 
-因此英雄鲤仍使用 `js/fish-hero-carp.js` 的高规格程序化管线。若你手动下载了 CC0 鲤/锦鲤 `.glb`，可放到本目录并命名 `carp.glb`，游戏会优先尝试加载（见 fish-hero-carp.js）。
+| 文件 | 来源 | 许可 |
+|---|---|---|
+| `real/koi.glb`、`silver_arowana.glb`、`rainbow_trout.glb`、`sockeye_salmon.glb`、`channel_catfish.glb`、`piranha.glb`、`largemouth_bass.glb` | Polyy.AI「[FREE] 3D Fish Pack」 | CC0 1.0 |
+| `real/barramundi.glb` | Khronos BarramundiFish（Microsoft） | CC0 1.0 |
 
-## 许可
-程序化贴图与几何为本项目原创。若将来放入第三方 GLB，请在此文件注明作者、链接与许可证。
+载入时把头转到 +X、体长缩放到 1。模型是静态网格，摆尾用顶点着色器。某个 GLB 加载失败时，该外形回退到 `js/fish.js` 的程序化鱼。
 
+## 历史文件（默认不加载）
 
-## 启用外部网格
-将 `carp.glb` 放到本目录后，在浏览器控制台执行：
+以下三件来自 Quaternius [Animated Cute Fish Pack](https://quaternius.com/packs/cutefish.html)（CC0）。早期曾作可爱占位，**当前游戏不加载**：
+
+- `Koi.glb`
+- `Goldfish.glb`
+- `ArmoredCatfish.glb`
+
+## 可选回退：`carp.glb`
+
+默认路径不读取 `carp.glb`。写实 GLB 已经接管时不会用到它。只有写实模型没有加载成功、物种又是英雄鲤，并且手动打开下面的开关时，`js/fish-hero-carp.js` 才会尝试本目录的 `carp.glb`。自行放入的文件须为 CC0 或已获授权，并在根目录 `CREDITS.md` 补记。
+
 ```js
 localStorage.setItem("fishing3d_carp_glb", "1"); location.reload();
 ```
 
+## 检索记录（2026-10-17，历史）
 
-## 2026-10-20 更新：写实鱼模型
-`js/fish-gltf.js` 现在加载 `vendor/fish/real/` 下 8 个 CC0 写实模型（带贴图），映射到 28 个物种（黄鳝、甲鱼仍为程序化网格）。来源与许可见 `real/CREDITS.md`。旧的 Quaternius Koi/Goldfish/ArmoredCatfish 不再加载，仅保留作历史文件。
+当时为英雄鲤寻找鲤科 GLB，结论是继续用程序化管线。2026-10-20 起默认鱼模型改为 `real/`，下面只保留检索过程：
+
+- Sketchfab **CC0 Carp, Cyprinus carpio**（ffish.asia）— 许可证符合，但需登录才能下载，自动化环境未拉取。
+- Quaternius / Poly Pizza **Koi (CC0)** — 页面存在，直链 403/404。三件可爱鱼后来另存为历史文件，见上节，默认不加载。
+- Polyy.AI itch.io Fish Pack（含 koi，CC0）— 当时需人工下载。现已放入 `real/`。
+- Khronos Sample **BarramundiFish** — 许可宽松，但是鲈形目，不用作英雄鲤。现以 `real/barramundi.glb` 用于鲈鱼、鳡鱼。
+
+程序化贴图与几何为本项目原创（作者刘子峻）。

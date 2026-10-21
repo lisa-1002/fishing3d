@@ -14,4 +14,5 @@
 | barramundi.glb | BarramundiFish.glb | Khronos glTF-Sample-Assets（Microsoft 贡献），https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/BarramundiFish | CC0 1.0 |
 
 处理：gltf-transform 贴图缩至 1024、转 WebP(q80)、weld + KHR_mesh_quantization（three.js 原生支持，无需解码器）。
-Polyy.AI 许可附注：禁止原样转售该素材包；在游戏中使用、修改、再分发均允许。
+Polyy.AI 许可附注：素材包页面披露 **AI Assisted Graphics**。禁止原样转售该素材包；在游戏中使用、修改、再分发均允许。
+仓库根目录 `CREDITS.md` 有完整第三方清单（含本目录、Quaternius 历史文件与水面法线）。
