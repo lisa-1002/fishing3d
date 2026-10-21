@@ -2,14 +2,13 @@
 
 Copyright (c) 2026 刘子峻
 
-原创程序代码，以及为本项目程序化生成的场景、界面、黄鳝、甲鱼、NPC「老余」等美术，版权归刘子峻所有。
+原创程序代码，以及为本项目程序化生成的场景、界面、黄鳝、甲鱼、NPC「老余」等美术，版权归刘子峻所有。`textures/waternormals.jpg` 是本项目原创的程序化水面法线，作者刘子峻以 CC0 / 公有领域贡献提供。
 
-All rights reserved to 刘子峻, except third-party materials listed in CREDITS.md.
+All rights reserved to 刘子峻, except third-party materials listed in CREDITS.md and the CC0 dedication of `textures/waternormals.jpg`.
 
 第三方素材不因本文件改变其各自许可，本文件也不把这些素材重新许可为「保留所有权利」或 MIT。使用、修改或再分发本游戏时，必须同时遵守 CREDITS.md，包括：
 
 - three.js 与 `vendor/addons` 仍为 MIT，须保留 MIT 通知；
-- `textures/waternormals.jpg` 为 Marianne Gagnon (Auria) 的 CC-BY-SA 3.0：必须署名；若衍生该贴图，衍生部分须按相同方式共享；
 - `vendor/fish/` 下的鱼类模型仍为 CC0，并受 CREDITS.md 中的转售限制与来源说明约束。
 
-Third-party assets keep the licenses named in CREDITS.md. This file does not relicense them.
+Third-party assets keep the licenses named in CREDITS.md. This file does not relicense them. The previous three.js example water normal is no longer shipped.
