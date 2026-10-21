@@ -29,9 +29,8 @@
 
 山和树仍是程序化剪影和实例化低模。照片级山体、树皮和树冠要另开一轮，这一轮不动地形。
 
-水面使用 Three.js `Water` 和 `textures/waternormals.jpg`。该文件与 three.js 示例字节一致；作者是 Marianne Gagnon (Auria)，许可是 CC-BY-SA 3.0，说明见 `CREDITS.md`。
+水面使用 Three.js `Water` 和 `textures/waternormals.jpg`。该法线是本项目原创的程序化贴图（CC0），说明见 `CREDITS.md`。旧的 three.js 示例水面法线已不再随包分发。
 
 ## 下一步
 
 1. 山体和树木做照片级一轮。
-2. 若微信商用希望水面许可更干净，把 `textures/waternormals.jpg` 换成自绘或 Kenney 等 CC0 法线，并改 `CREDITS.md`。
