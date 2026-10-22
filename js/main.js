@@ -1,14 +1,14 @@
 // 静湖垂钓 3D v4 —— 渲染、输入、台钓/露亚双玩法状态机、音效、新手教学
 import * as THREE from 'three';
-import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=9';
+import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=10';
 import { locationById } from './locations.js';
-import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails, fightDiff, catchLevel } from './fish.js?v=9';
-import { preloadQuaterniusFish, tickFishAnim } from './fish-gltf.js?v=9';
-import { RODS, LURES, BAITS } from './data.js?v=9';
-import { loadSave } from './save.js?v=9';
-import { createSystems } from './systems.js?v=9';
-import { createUI } from './ui.js?v=9';
-import { createAudio } from './audio.js?v=9';
+import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails, fightDiff, catchLevel } from './fish.js?v=10';
+import { preloadQuaterniusFish, tickFishAnim } from './fish-gltf.js?v=10';
+import { RODS, LURES, BAITS } from './data.js?v=10';
+import { loadSave } from './save.js?v=10';
+import { createSystems } from './systems.js?v=10';
+import { createUI } from './ui.js?v=10';
+import { createAudio } from './audio.js?v=10';
 import { clamp, lerp, rand } from './util.js';
 
 // ---------------- 画质 ----------------
@@ -542,7 +542,8 @@ addEventListener('pointermove', e => {
     }
     G.aim -= dx * 0.0072;
     if (G.aim > Math.PI) G.aim -= Math.PI * 2; else if (G.aim < -Math.PI) G.aim += Math.PI * 2;
-    lookPitch = clamp(lookPitch + dy * 0.0036, -0.42, 0.32);
+    // 上滑 clientY 变小。俯仰取反后才是抬头（正 pitch 朝上），走路和抛竿共用这一路。
+    lookPitch = clamp(lookPitch - dy * 0.0036, -0.42, 0.32);
     lookDrag.x = e.clientX; lookDrag.y = e.clientY;
     e.preventDefault();
     return;
