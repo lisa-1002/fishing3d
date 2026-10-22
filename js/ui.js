@@ -1,6 +1,6 @@
 // 界面：HUD、鱼护、商店、任务、装备、图鉴
-import { SPECIES, RARITY, speciesById } from './fish.js?v=6';
-import { RODS, LINES, NETS, BAITS, LURES, MAIN_QUESTS, MAX_LEVEL, LEVEL_XP } from './data.js?v=6';
+import { SPECIES, RARITY, speciesById, catchLevel } from './fish.js?v=9';
+import { RODS, LINES, NETS, BAITS, LURES, MAIN_QUESTS } from './data.js?v=9';
 import { LOCATIONS, mapStatus } from './locations.js';
 
 const $ = id => document.getElementById(id);
@@ -33,7 +33,7 @@ export function createUI(save, S, ctx) {
       ? `${rod.name} · ${S.lure().name}`
       : `${rod.name} · ${S.bait().name}${S.baitId() !== 'none' ? '×' + save.bait[S.baitId()] : ''}`;
     const loc = S.location();
-    const li = $('locInfo'); if (li) li.textContent = `📍 ${loc.name}`;
+    const li = $('locInfo'); if (li) li.textContent = save.cycle ? `📍 ${loc.name} · 第 ${save.cycle} 次轮回` : `📍 ${loc.name}`;
     const pi = $('pityInfo');
     if (pi && S.pityInfo) {
       const p = S.pityInfo();
@@ -85,8 +85,10 @@ export function createUI(save, S, ctx) {
 
   // ---------- 鱼护 ----------
   function renderNet() {
+    const ly = S.laoyuLevel();
+    const bonus = Math.round(S.laoyuBonus() * 100);
     pTitle.innerHTML = allowSell
-      ? `老余收购 <small>${save.net.length} / ${S.netCap()}</small>`
+      ? `老余收购 <small>交情 Lv.${ly}${ly >= 20 ? ' 已满' : ''} · 加成 +${bonus}%</small>`
       : `鱼护 <small>${save.net.length} / ${S.netCap()}</small>`;
     tabs([]);
     if (!save.net.length) {
@@ -103,7 +105,7 @@ export function createUI(save, S, ctx) {
         : `<button class="sell ghost" disabled title="去找渔夫">—</button>`;
       return `<div class="row" style="--rc:${RARITY[sp.rarity].color}">
         <div class="thumb">${thumb(f.id)}</div>
-        <div class="info"><div class="nm">${sp.name} ${rarTag(sp)} ${f.perfect ? '<span class="ptag">完美</span>' : ''}</div><div class="sub">${fmtW(f.w)}</div></div>
+        <div class="info"><div class="nm">${sp.name} ${rarTag(sp)} ${f.perfect ? '<span class="ptag">完美</span>' : ''}</div><div class="sub">${fmtW(f.w)} · Lv.${catchLevel(sp, f.w)}</div></div>
         <button class="keep ${f.keep ? 'on' : ''}" data-act="keep" data-id="${f.uid}">${f.keep ? '★ 保留' : '☆ 保留'}</button>
         ${sellBtn}
       </div>`;
@@ -128,6 +130,7 @@ export function createUI(save, S, ctx) {
     return `<div class="row shop ${lvlOk ? '' : 'locked'}"><div class="info"><div class="nm">${d.name}${d.pack ? ` ×${d.pack}` : ''}</div><div class="sub">${d.desc}</div>${stats ? `<div class="stats">${stats}</div>` : ''}</div>${btn}</div>`;
   }
   const bar = (label, v, max) => `<span class="st"><i>${label}</i><em><u style="width:${Math.min(100, v / max * 100)}%"></u></em></span>`;
+  const maxOf = (table, key) => Math.max(1e-6, ...Object.values(table).map(d => d[key] || 0));
   function renderShop() {
     pTitle.innerHTML = `房子商店 <small><span class="ico coin"></span>${save.coins}</small>`;
     tabs([['rod', '鱼竿'], ['line', '鱼线'], ['bait', '鱼饵'], ['lure', '路亚饵'], ['net', '鱼护']]);
@@ -135,17 +138,21 @@ export function createUI(save, S, ctx) {
     if (tab === 'rod') {
       for (const type of ['float', 'lure']) {
         html += `<div class="sec">${type === 'float' ? '台钓竿 · 等漂、看口、提竿' : '露亚竿 · 抛投、收线、诱鱼攻击'}</div>`;
+        const rs = maxOf(RODS, 'strength'), rn = maxOf(RODS, 'sens'), rc = maxOf(RODS, 'cast');
         for (const [id, d] of Object.entries(RODS)) if (d.type === type && d.price > 0)
-          html += shopItem('rod', id, d, bar('拉力', d.strength, 1.6) + bar('灵敏', d.sens, 1.6) + bar('投远', d.cast, 1.3), save.owned.rods.includes(id));
+          html += shopItem('rod', id, d, bar('拉力', d.strength, rs) + bar('灵敏', d.sens, rn) + bar('投远', d.cast, rc) + `<span class="have">Lv.${d.lvl} 解锁</span>`, save.owned.rods.includes(id));
       }
     } else if (tab === 'line') {
-      for (const [id, d] of Object.entries(LINES)) if (d.price > 0) html += shopItem('line', id, d, bar('强度', d.max, 1.4), save.owned.lines.includes(id));
+      const lm = maxOf(LINES, 'max');
+      for (const [id, d] of Object.entries(LINES)) if (d.price > 0) html += shopItem('line', id, d, bar('强度', d.max, lm), save.owned.lines.includes(id));
     } else if (tab === 'bait') {
       html += '<div class="sec">台钓消耗品，每抛一竿消耗 1 个</div>';
-      for (const [id, d] of Object.entries(BAITS)) if (d.price > 0) html += shopItem('bait', id, d, `<span class="have">持有 ${save.bait[id] || 0}</span>`, false);
+      const bp = maxOf(BAITS, 'power');
+      for (const [id, d] of Object.entries(BAITS)) if (d.price > 0) html += shopItem('bait', id, d, bar('效力', d.power || 1, bp) + `<span class="have">持有 ${save.bait[id] || 0}</span>`, false);
     } else if (tab === 'lure') {
       html += '<div class="sec">露亚竿专用，永久使用</div>';
-      for (const [id, d] of Object.entries(LURES)) html += shopItem('lure', id, d, bar('最佳速度', d.pref, 1), save.owned.lures.includes(id));
+      const lp = maxOf(LURES, 'power');
+      for (const [id, d] of Object.entries(LURES)) html += shopItem('lure', id, d, bar('效力', d.power || 1, lp) + bar('最佳速度', d.pref, 1), save.owned.lures.includes(id));
     } else if (tab === 'net') {
       for (const [id, d] of Object.entries(NETS)) if (d.price > 0) html += shopItem('net', id, d, '', save.owned.nets.includes(id));
     }
@@ -208,11 +215,14 @@ export function createUI(save, S, ctx) {
     const keys = S.heldKeys();
     const keyNames = keys.map(id => {
       const L = LOCATIONS.find(l => l.id === id);
-      return L ? L.keyName : id;
+      return L ? L.keyName : (id === 'rainbow' ? '虹桥钥匙' : id);
     });
+    const keeper = S.allMaps() ? '黄衣人' : '黑衣人';
     const keyLine = keys.length
-      ? `持有钥匙：${keyNames.join('、')} · 交给码头黑衣人开船`
-      : '当前钓点钓到「传说」→ 钥匙 → 交给黑衣人开船';
+      ? `持有钥匙：${keyNames.join('、')} · 交给码头${keeper}`
+      : (S.allMaps()
+        ? '五处都走过了。再钓一条传说鱼，把虹桥钥匙交给黄衣人'
+        : '当前钓点钓到「传说」→ 钥匙 → 交给黑衣人开船');
     pBody.innerHTML = `<div class="sec">抛竿途中无法切换 · ${keyLine}</div><div class="mapGrid">` + LOCATIONS.map(loc => {
       const st = S.mapStatus(loc);
       const owned = st.state === 'owned';
@@ -243,7 +253,7 @@ export function createUI(save, S, ctx) {
       const c = save.collection[s.id], R = RARITY[s.rarity];
       return `<div class="dex-item ${c ? '' : 'locked'}" style="--rc:${R.color}">${thumb(s.id)}
         <div class="dex-name">${c ? s.name : '？？？'}</div><div class="dex-rar" style="color:${R.color}">${R.name} · ${methodName(s.method)}</div>
-        <div class="dex-info">${c ? `捕获 ${c.count} 次 · 最重 ${fmtW(c.maxW)}` : '尚未钓到'}</div></div>`;
+        <div class="dex-info">${c ? `难度 Lv.${s.diff} · 捕获 ${c.count} 次 · 最重 ${fmtW(c.maxW)}` : '尚未钓到'}</div></div>`;
     }).join('')}</div>`;
   }
 

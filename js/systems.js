@@ -1,8 +1,8 @@
 // 游戏系统：经济（出售/商店）、经验等级、任务、选鱼
-import { SPECIES, RARITY, speciesById } from './fish.js?v=6';
-import { RODS, LINES, NETS, BAITS, LURES, RARITY_BASE, LEVEL_XP, MAX_LEVEL, DAILY_TEMPLATES, MAIN_QUESTS, PITY } from './data.js?v=6';
-import { writeSave } from './save.js?v=6';
-import { LOCATIONS, locationById, nextKeyIdFrom, mapStatus } from './locations.js';
+import { SPECIES, RARITY, speciesById } from './fish.js?v=9';
+import { RODS, LINES, NETS, BAITS, LURES, RARITY_BASE, LEVEL_XP, MAX_LEVEL, LAOYU_XP, LAOYU_MAX, DAILY_TEMPLATES, MAIN_QUESTS, PITY } from './data.js?v=9';
+import { writeSave } from './save.js?v=9';
+import { LOCATIONS, LOCATION_ORDER, locationById, nextKeyIdFrom, mapStatus } from './locations.js';
 
 export function createSystems(save, hooks = {}) {
   const S = {};
@@ -10,12 +10,31 @@ export function createSystems(save, hooks = {}) {
   S.persist = () => writeSave(save);
 
   // ---------- 等级 ----------
-  S.level = () => { let l = 1; for (let i = 0; i < LEVEL_XP.length; i++) if (save.xp >= LEVEL_XP[i]) l = i + 1; return l; };
+  S.level = () => { let l = 1; for (let i = 0; i < LEVEL_XP.length; i++) if (save.xp >= LEVEL_XP[i]) l = i + 1; return Math.min(l, MAX_LEVEL); };
   S.levelProgress = () => {
-    const l = S.level(); if (l >= MAX_LEVEL) return 1;
-    return (save.xp - LEVEL_XP[l - 1]) / (LEVEL_XP[l] - LEVEL_XP[l - 1]);
+    const l = S.level();
+    if (l >= MAX_LEVEL) return 1;
+    const next = LEVEL_XP[l];
+    const prev = LEVEL_XP[l - 1];
+    if (next == null || next === prev) return 1;
+    return Math.max(0, Math.min(1, (save.xp - prev) / (next - prev)));
   };
   S.addXp = (n) => { const before = S.level(); save.xp += n; const after = S.level(); if (after > before) emit('levelUp', after); };
+  // 老余交情：只在玩家主动卖鱼时上涨，满级 20
+  S.laoyuLevel = () => {
+    let l = 1;
+    const xp = save.laoyuXp || 0;
+    for (let i = 0; i < LAOYU_XP.length; i++) if (xp >= LAOYU_XP[i]) l = i + 1;
+    return Math.min(l, LAOYU_MAX);
+  };
+  S.laoyuProgress = () => {
+    const l = S.laoyuLevel();
+    if (l >= LAOYU_MAX) return 1;
+    const next = LAOYU_XP[l], prev = LAOYU_XP[l - 1];
+    if (next == null || next === prev) return 1;
+    return Math.max(0, Math.min(1, ((save.laoyuXp || 0) - prev) / (next - prev)));
+  };
+  S.laoyuBonus = () => (S.laoyuLevel() - 1) / (LAOYU_MAX - 1) * 0.22;
 
   // ---------- 装备 ----------
   S.rod = () => RODS[save.equip.mode === 'lure' ? save.equip.lure : save.equip.float] || RODS.bamboo;
@@ -92,7 +111,8 @@ export function createSystems(save, hooks = {}) {
   // ---------- 鱼价 / 鱼护 / 出售 ----------
   S.price = (f) => {
     const sp = speciesById[f.id]; const avg = (sp.w[0] + sp.w[1]) / 2;
-    return Math.max(1, Math.round(sp.price * Math.pow(f.w / avg, 0.85) * (f.perfect ? 1.1 : 1)));
+    const base = sp.price * Math.pow(f.w / avg, 0.85) * (f.perfect ? 1.1 : 1);
+    return Math.max(1, Math.round(base * (1 + S.laoyuBonus())));
   };
   S.netFull = () => save.net.length >= S.netCap();
   S.keepFish = (f) => { if (S.netFull()) return false; save.net.push(f); S.persist(); return true; };
@@ -103,7 +123,11 @@ export function createSystems(save, hooks = {}) {
   };
   S.sellCoins = (total) => {
     if (!total) return;
+    const before = S.laoyuLevel();
     save.coins += total; save.stats.sold += total;
+    save.laoyuXp = (save.laoyuXp || 0) + total;
+    const after = S.laoyuLevel();
+    if (after > before) emit('laoyuUp', after);
     S.progress('sell_coins', total); S.persist();
   };
   S.toggleKeep = (uid) => { const f = save.net.find(f => f.uid === uid); if (f) { f.keep = !f.keep; S.persist(); } };
@@ -111,6 +135,7 @@ export function createSystems(save, hooks = {}) {
   // ---------- 选鱼 ----------
   S.location = () => locationById[save.location] || LOCATIONS[0];
   S.unlockedCount = () => Object.keys(save.unlockedLocations || {}).filter(k => save.unlockedLocations[k]).length;
+  S.allMaps = () => LOCATION_ORDER.every(id => !!(save.unlockedLocations && save.unlockedLocations[id]));
   S.hasKey = (id) => !!(save.keys && save.keys[id]);
   S.heldKeys = () => Object.keys(save.keys || {}).filter(k => save.keys[k]);
   /** 黑衣人收钥匙解锁钓点；返回 { ok, msg, locId } */
@@ -128,9 +153,43 @@ export function createSystems(save, hooks = {}) {
   /** 持有的第一把未解锁钥匙（给对话用） */
   S.nextDeliverableKey = () => {
     for (const id of S.heldKeys()) {
+      if (id === 'rainbow') continue;
       if (!save.unlockedLocations[id]) return id;
     }
     return null;
+  };
+  /** 轮回：钓点、等级、装备和大部分主线重新开始。图鉴、老余交情、鱼种成就领取记录留下。 */
+  S.rebirth = () => {
+    const cycle = (save.cycle || 0) + 1;
+    const collection = save.collection || {};
+    const laoyuXp = save.laoyuXp || 0;
+    const uidSeq = save.uidSeq || 1;
+    const keptClaims = {};
+    for (const id of ['m5', 'm9', 'm10']) if (save.mainClaimed && save.mainClaimed[id]) keptClaims[id] = true;
+    save.coins = 50 + cycle * 40;
+    save.catches = 0;
+    save.xp = 0;
+    save.collection = collection;
+    save.net = [];
+    save.owned = { rods: ['bamboo'], lines: ['nylon'], nets: ['small'], lures: [] };
+    save.bait = { worm: 10 };
+    save.equip = { mode: 'float', float: 'bamboo', lure: null, line: 'nylon', net: 'small', bait: 'worm', lureItem: null };
+    save.stats = { sold: 0, lure: 0, perfect: 0, maxW: 0, legend: 0, rareUp: 0 };
+    save.daily = null;
+    save.mainClaimed = keptClaims;
+    save.location = 'lake';
+    save.unlockedLocations = { lake: true };
+    save.keys = {};
+    save.pity = {};
+    save.legendAt = {};
+    save.laoyuXp = laoyuXp;
+    save.cycle = cycle;
+    save.rainbow = false;
+    save.cleared = false;
+    save.uidSeq = uidSeq;
+    S.ensureDaily();
+    S.persist();
+    return cycle;
   };
   S.setLocation = (id) => {
     if (!save.unlockedLocations[id]) return '尚未解锁：需传说钥匙交给黑衣人';
@@ -160,7 +219,8 @@ export function createSystems(save, hooks = {}) {
     const counts = {}; pool.forEach(s => counts[s.rarity] = (counts[s.rarity] || 0) + 1);
     const weights = pool.map(s => {
       const lw = loc.weights[s.id] !== undefined ? loc.weights[s.id] : 0.35; // 未点名的鱼少量出现
-      return base[s.rarity] / counts[s.rarity] * rarMul[s.rarity] * (mod.rar[s.rarity] || 1) * (mod.attract[s.id] || 1) * lw;
+      const gearPow = s.rarity === 'common' ? 1 : (mod.power || 1);
+      return base[s.rarity] / counts[s.rarity] * rarMul[s.rarity] * (mod.rar[s.rarity] || 1) * (mod.attract[s.id] || 1) * lw * gearPow;
     });
     const total = weights.reduce((a, b) => a + b, 0);
     const legW = pool.reduce((a, s, i) => a + (s.rarity === 'legend' ? weights[i] : 0), 0);
@@ -199,15 +259,22 @@ export function createSystems(save, hooks = {}) {
       if (kid && !save.unlockedLocations[kid] && !save.keys[kid]) {
         save.keys[kid] = true;
         keyDrop = { id: kid, name: locationById[kid].keyName || '传说钥匙', dest: locationById[kid].name };
-      } else if (kid && save.keys[kid]) {
+      } else if (kid && !save.unlockedLocations[kid] && save.keys[kid]) {
         keyDrop = { id: kid, name: locationById[kid].keyName || '传说钥匙', dest: locationById[kid].name, already: true };
+      } else if (S.allMaps() && !save.rainbow && !save.cleared) {
+        if (!save.keys.rainbow) {
+          save.keys.rainbow = true;
+          keyDrop = { id: 'rainbow', name: '虹桥钥匙', dest: '湖心', endgame: true };
+        } else {
+          keyDrop = { id: 'rainbow', name: '虹桥钥匙', dest: '湖心', endgame: true, already: true };
+        }
       }
     }
     const fish = { uid: save.uidSeq++, id: sp.id, w: Math.round(weight * 100) / 100, perfect: !!perfect, keep: false, t: Date.now() };
     const value = S.price(fish);
     const bonus = Math.max(1, Math.round(value * 0.1));
     save.coins += bonus;
-    const xp = Math.round((4 + sp.price * 0.25) * (perfect ? 1.3 : 1));
+    const xp = Math.round((4 + sp.price * 0.25) * (1 + Math.max(0, sp.diff - 6) * 0.035) * (perfect ? 1.3 : 1));
     S.progress('catch', { sp, weight, mode });
     S.addXp(xp);
     S.persist();

@@ -1,7 +1,7 @@
 // 存档：版本号 + 迁移，保证旧存档不丢失
 const KEY = 'fishing3d_save';
 const OLD_KEYS = ['fishing3d_save_v1'];
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 6;
 
 export function defaultSave() {
   return {
@@ -21,6 +21,10 @@ export function defaultSave() {
     keys: {}, // { stream: true, marsh: true, ... } 持有、尚未交给黑衣人的传说钥匙
     pity: {},     // { lake: 3, ... } 各钓点自上次传说以来的非传说渔获数（传说保底）
     legendAt: {}, // { lake: true } 该钓点是否已钓到过传说
+    laoyuXp: 0,   // 卖给老余的累计金币，换算成交情等级（最高 20）
+    cycle: 0,     // 轮回次数
+    rainbow: false, // 已把虹桥钥匙交给黄衣人，彩虹路出现
+    cleared: false, // 已打开宝箱，看过「通关了」
   };
 }
 
@@ -54,6 +58,16 @@ function migrate(s) {
     if (!(s.stats && s.stats.legend > 0) && (s.catches || 0) > 0) s.pity[s.location || 'lake'] = Math.min(s.catches, 10);
   }
   if (!s.legendAt || typeof s.legendAt !== 'object') s.legendAt = {};
+  // v5：老余交情。旧档按已经卖出的金币记一笔，不重置钓点、金币或等级
+  if (typeof s.laoyuXp !== 'number' || Number.isNaN(s.laoyuXp)) {
+    s.laoyuXp = Math.max(0, (s.stats && s.stats.sold) || 0);
+  }
+  if ((s.version || 0) < 5) s.version = 5;
+  // v6：通关 / 轮回标记。缺省补上，不改已有钓点、金币、等级
+  if (typeof s.cycle !== 'number' || Number.isNaN(s.cycle)) s.cycle = 0;
+  if (typeof s.rainbow !== 'boolean') s.rainbow = false;
+  if (typeof s.cleared !== 'boolean') s.cleared = false;
+  if ((s.version || 0) < 6) s.version = 6;
   for (const k of Object.keys(d)) if (s[k] === undefined) s[k] = d[k];
   for (const k of ['owned', 'equip', 'stats', 'unlockedLocations', 'keys', 'pity', 'legendAt']) s[k] = Object.assign({}, d[k], s[k]);
   s.unlockedLocations.lake = true;

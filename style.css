@@ -270,7 +270,7 @@ body.busy #modeBtn { opacity: .35; }
   will-change: transform;
 }
 #joyTurn {
-  display: flex;
+  display: none;
   gap: 10px;
 }
 #joyTurn button {
