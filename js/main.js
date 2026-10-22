@@ -1,14 +1,14 @@
 // 静湖垂钓 3D v4 —— 渲染、输入、台钓/露亚双玩法状态机、音效、新手教学
 import * as THREE from 'three';
-import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=6';
+import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=9';
 import { locationById } from './locations.js';
-import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails } from './fish.js?v=6';
-import { preloadQuaterniusFish, tickFishAnim } from './fish-gltf.js?v=6';
-import { RODS, LURES, BAITS } from './data.js?v=6';
-import { loadSave } from './save.js?v=6';
-import { createSystems } from './systems.js?v=6';
-import { createUI } from './ui.js?v=6';
-import { createAudio } from './audio.js?v=6';
+import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails, fightDiff, catchLevel } from './fish.js?v=9';
+import { preloadQuaterniusFish, tickFishAnim } from './fish-gltf.js?v=9';
+import { RODS, LURES, BAITS } from './data.js?v=9';
+import { loadSave } from './save.js?v=9';
+import { createSystems } from './systems.js?v=9';
+import { createUI } from './ui.js?v=9';
+import { createAudio } from './audio.js?v=9';
 import { clamp, lerp, rand } from './util.js';
 
 // ---------------- 画质 ----------------
@@ -23,6 +23,7 @@ const { save, migrated } = loadSave();
 let UI;
 const S = createSystems(save, {
   levelUp: l => { UI && UI.toast(`升级！钓鱼等级 Lv.${l}，商店解锁新装备`, 2600); },
+  laoyuUp: lv => { UI && UI.toast(`老余的交情到了 Lv.${lv}，收购价更高了`, 2600); if (world.setLaoYuLevel) world.setLaoYuLevel(lv); },
   questDone: t => { UI && setTimeout(() => UI.toast(`任务完成：${t}，去任务面板领取奖励`, 2600), 2700); },
   toast: m => UI && UI.toast(m),
   equipChanged: () => { applyGear(); UI && UI.refreshHud(); },
@@ -66,7 +67,13 @@ function applyCurrentLocation() {
   const loc = locationById[save.location] || locationById.lake;
   world.applyTheme(loc.theme, renderer);
 }
+function syncStory() {
+  if (world.setLaoYuLevel) world.setLaoYuLevel(S.laoyuLevel());
+  if (world.setStrangerGold) world.setStrangerGold(S.allMaps());
+  if (world.setRainbow) world.setRainbow(!!save.rainbow);
+}
 applyCurrentLocation();
+syncStory();
 // Quaternius CC0 鱼（失败时 buildFish 回退程序化网格）
 const fishAssetsReady = preloadQuaterniusFish();
 
@@ -300,8 +307,8 @@ spotRing.rotation.x = -Math.PI / 2; spotRing.position.set(0, DECK_Y + 0.04, DOCK
 scene.add(spotRing);
 const HINT = {
   idle: () => save.equip.mode === 'lure'
-    ? (isMobile ? '露亚：按住蓄力，拖动瞄准，松开抛投' : '露亚：按住鼠标/空格蓄力，拖动或 A/D 瞄准，松开抛投')
-    : (isMobile ? '台钓：按住蓄力，拖动瞄准，松开抛竿' : '台钓：按住鼠标/空格蓄力，拖动或 A/D 瞄准，松开抛竿'),
+    ? (isMobile ? '露亚：滑屏转身，摇杆走动；按住右下角蓄力抛投' : '露亚：按住鼠标/空格蓄力，拖动或 A/D 瞄准，松开抛投')
+    : (isMobile ? '台钓：滑屏转身，摇杆走动；按住右下角蓄力抛竿' : '台钓：按住鼠标/空格蓄力，拖动或 A/D 瞄准，松开抛竿'),
   charging: () => '松开抛竿！', casting: () => '',
   waiting: () => G.nibbling > 0 ? '有鱼在试口… 别急，等浮漂整个沉下去（黑漂）！' : '耐心等待… 小幅点动是试口，整个下沉再提竿',
   bite: () => '', strike: () => '',
@@ -408,7 +415,7 @@ function landFish() {
   const R = RARITY[sp.rarity], c = ui.card;
   c.style.setProperty('--rc', R.color);
   c.querySelector('.c-rar').textContent = R.name;
-  c.querySelector('.c-name').textContent = sp.name;
+  c.querySelector('.c-name').textContent = `${sp.name}  Lv.${catchLevel(sp, weight)}`;
   c.querySelector('.c-weight').textContent = weight >= 10 ? `${weight.toFixed(1)} kg` : `${weight.toFixed(2)} kg`;
   c.querySelector('.c-value').textContent = `估价 ${info.value} 金币`;
   let bonusTxt = `渔获奖励 +${info.bonus} 金币 · +${info.xp} 经验${G.perfect ? '（完美加成）' : ''}`;
@@ -418,7 +425,9 @@ function landFish() {
   c.querySelector('.c-bonus').textContent = bonusTxt;
   if (info.keyDrop) {
     setTimeout(() => {
-      if (info.keyDrop.already) UI.toast(`已持有「${info.keyDrop.name}」，去交给黑衣人开船`, 2800);
+      if (info.keyDrop.endgame) {
+        UI.toast(info.keyDrop.already ? `已持有「虹桥钥匙」，去交给黄衣人` : `🔑 获得「虹桥钥匙」！去码头交给黄衣人`, 3600);
+      } else if (info.keyDrop.already) UI.toast(`已持有「${info.keyDrop.name}」，去交给黑衣人开船`, 2800);
       else UI.toast(`🔑 获得「${info.keyDrop.name}」！去码头找黑衣人开船前往「${info.keyDrop.dest}」`, 3600);
     }, 900);
   }
@@ -464,6 +473,22 @@ function twitch() {
 
 // ---------------- 输入 ----------------
 let pointerX = null, started = false;
+let lookPitch = 0;
+const lookDrag = { on: false, pid: null, x: 0, y: 0, moved: false };
+const LOOK_DEAD = 16;
+function canFreeLook() {
+  const dlg = $('dialogue');
+  if (!started || G.state !== 'idle' || UI.isOpen()) return false;
+  if (dlg && !dlg.classList.contains('hidden')) return false;
+  return true;
+}
+function endLookDrag(e) {
+  if (!lookDrag.on) return false;
+  if (e && e.pointerId !== lookDrag.pid) return false;
+  lookDrag.on = false;
+  lookDrag.pid = null;
+  return true;
+}
 function onPress() {
   if (!started || UI.isOpen()) return;
   G.pressT = performance.now();
@@ -488,11 +513,40 @@ function onRelease() {
   else if (G.state === 'reeling') G.holding = false;
   else if (G.state === 'lure') { G.holding = false; if (performance.now() - G.pressT < 180) twitch(); }
 }
-canvas.addEventListener('pointerdown', e => { pointerX = e.clientX; onPress(); });
+canvas.addEventListener('pointerdown', e => {
+  // 走动时空屏滑动转身；抛竿仍走右下角按钮 / 鼠标，避免和收线抢手势
+  if (e.pointerType === 'touch' && canFreeLook()) {
+    lookDrag.on = true; lookDrag.pid = e.pointerId; lookDrag.moved = false;
+    lookDrag.x = e.clientX; lookDrag.y = e.clientY;
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    e.preventDefault();
+    return;
+  }
+  pointerX = e.clientX; onPress();
+});
 ui.action.addEventListener('pointerdown', e => { e.stopPropagation(); pointerX = e.clientX; onPress(); });
-addEventListener('pointerup', () => { pointerX = null; onRelease(); });
-addEventListener('pointercancel', () => { pointerX = null; onRelease(); });
+addEventListener('pointerup', e => {
+  if (endLookDrag(e)) return;
+  pointerX = null; onRelease();
+});
+addEventListener('pointercancel', e => {
+  if (endLookDrag(e)) return;
+  pointerX = null; onRelease();
+});
 addEventListener('pointermove', e => {
+  if (lookDrag.on && e.pointerId === lookDrag.pid) {
+    const dx = e.clientX - lookDrag.x, dy = e.clientY - lookDrag.y;
+    if (!lookDrag.moved) {
+      if (Math.hypot(dx, dy) < LOOK_DEAD) return;
+      lookDrag.moved = true;
+    }
+    G.aim -= dx * 0.0072;
+    if (G.aim > Math.PI) G.aim -= Math.PI * 2; else if (G.aim < -Math.PI) G.aim += Math.PI * 2;
+    lookPitch = clamp(lookPitch + dy * 0.0036, -0.42, 0.32);
+    lookDrag.x = e.clientX; lookDrag.y = e.clientY;
+    e.preventDefault();
+    return;
+  }
   if (pointerX !== null && G.state === 'charging') { G.aim = clamp(G.aim - (e.clientX - pointerX) * 0.004, -0.6, 0.6); pointerX = e.clientX; }
 });
 const keys = {};
@@ -622,14 +676,78 @@ function showDialogue({ name = '黑衣神秘人', text, okText = '……', cance
   });
 }
 
+function laoYuLine() {
+  const lv = S.laoyuLevel();
+  if (lv >= 20) return '老余：二十级的交情了。你的鱼，我闭着眼都敢给高价。';
+  if (lv >= 15) return '老余：又是一护好鱼。价我给你抬着。';
+  if (lv >= 10) return '老余：熟客来了。今天的秤，往你那边偏一偏。';
+  if (lv >= 5) return '老余：又来啦。慢慢挑，我不催。';
+  return '老余：哟，今天钓到啥好货了？';
+}
+function enterCycle() {
+  const cycle = S.rebirth();
+  PLAYER.x = 0; PLAYER.z = DOCK_END_Z + 3.0; G.aim = 0; lookPitch = 0;
+  CAM_POS.set(PLAYER.x, PLAYER.eye, PLAYER.z);
+  applyCurrentLocation();
+  applyGear();
+  syncStory();
+  UI.close();
+  UI.refreshHud();
+  UI.toast(`第 ${cycle} 次轮回。图鉴还在，老余也记得你。钓点、等级和装备重新开始。`, 4600);
+}
+async function openChest() {
+  if (G.state !== 'idle') return;
+  if (!save.cleared) {
+    save.cleared = true;
+    S.persist();
+    await showDialogue({ name: '宝箱', text: '通关了。湖面静下来，像是认得你了。', okText: '……' });
+  }
+  const next = (save.cycle || 0) + 1;
+  const yes = await showDialogue({
+    name: '轮回',
+    text: `要进入轮回吗？这是第 ${next} 次。钓点、等级和装备会重新开始，图鉴和老余的交情留着，鱼种成就的奖励也不会重复发。`,
+    okText: '进入轮回',
+    cancelText: '再留一会儿',
+  });
+  if (yes) enterCycle();
+}
 async function talkToStranger() {
   if (G.state !== 'idle') return;
+  const gold = S.allMaps();
+  const who = gold ? '黄衣人' : '黑衣神秘人';
+  if (gold && save.keys && save.keys.rainbow && !save.rainbow) {
+    const yes = await showDialogue({
+      name: who,
+      text: '五处水域都走过了。这把钥匙……不一样。交给我吧。',
+      okText: '交出虹桥钥匙',
+      cancelText: '下次再说',
+    });
+    if (!yes) return;
+    delete save.keys.rainbow;
+    save.rainbow = true;
+    S.persist();
+    syncStory();
+    UI.toast('好像有一条路出现了…', 3600);
+    await showDialogue({ name: who, text: '好像有一条路出现了…沿着光往前走，尽头有一只箱子。', okText: '我去看看' });
+    return;
+  }
+  if (gold && save.rainbow) {
+    await showDialogue({
+      name: who,
+      text: save.cleared ? '箱子已经开过了。想再走一遭的话，就进去轮回吧。' : '路还亮着。走到尽头，打开那只箱子。',
+      okText: '好',
+    });
+    return;
+  }
   const keyId = S.nextDeliverableKey();
   if (!keyId) {
-    if (S.unlockedCount() >= 5) {
-      await showDialogue({ text: '五湖四海，你都去过了。钥匙的故事到此为止。', okText: '告辞' });
+    if (gold) {
+      await showDialogue({ name: who, text: '衣裳换了颜色。再钓一条传说鱼，把最后那把钥匙交给我。', okText: '明白了' });
+    } else if (S.unlockedCount() >= 5) {
+      await showDialogue({ name: who, text: '五湖四海，你都去过了。钥匙的故事到此为止。', okText: '告辞' });
     } else {
       await showDialogue({
+        name: who,
         text: '传说之鱼身上藏着下一处水域的钥匙。钓到它，再来找我——我会开船送你去。',
         okText: '明白了',
       });
@@ -638,6 +756,7 @@ async function talkToStranger() {
   }
   const dest = locationById[keyId];
   const yes = await showDialogue({
+    name: who,
     text: `你手上的「${dest.keyName}」……我认得。交给我，船就开往「${dest.name}」。`,
     okText: '交出钥匙',
     cancelText: '下次再说',
@@ -645,16 +764,18 @@ async function talkToStranger() {
   if (!yes) return;
   const r = S.deliverKey(keyId);
   if (!r.ok) { UI.toast(r.msg); return; }
-  await showDialogue({ text: `很好。上船吧——「${dest.name}」在等你。`, okText: '开船' });
+  await showDialogue({ name: who, text: `很好。上船吧——「${dest.name}」在等你。`, okText: '开船' });
   await boatTravelTo(keyId, { unlockMsg: `钥匙转动……开船前往「${dest.name}」` });
+  syncStory();
 }
 
 function tryInteract() {
   if (G.state !== 'idle' || UI.isOpen()) return;
   if ($('dialogue') && !$('dialogue').classList.contains('hidden')) return;
   if (nearInteract === 'shop') { UI.openShop(); UI.toast('欢迎光临房子商店'); }
-  else if (nearInteract === 'sell') { UI.openSell(); UI.toast('老余：哟，今天钓到啥好货了？'); }
+  else if (nearInteract === 'sell') { UI.openSell(); UI.toast(laoYuLine()); }
   else if (nearInteract === 'stranger') talkToStranger();
+  else if (nearInteract === 'chest') openChest();
 }
 // 互动按钮：只用 click（触屏 tap 也会触发 click）。不在 pointerup 里打开面板，
 // 否则随后的合成 click 落在刚弹出的面板遮罩上会立刻把面板关掉。
@@ -687,16 +808,17 @@ addEventListener('resize', onResize); onResize();
 function updateFight(dt, time, f) {
   const sp = G.fish.sp, wf = G.fish.wf, rodDef = S.rod(), lineMax = S.line().max;
   const lureMode = G.mode === 'lure';
-  const strength = (0.16 + sp.diff * 0.075 + wf * 0.1) * (lureMode ? 1.12 : 1) / Math.pow(rodDef.strength, 0.7);
-  // 事件：挣扎 surge / 甩头 shake / 冲刺 run / 跃水 jump
-  if (G.evt) { G.evt.t += dt; if (G.evt.t >= G.evt.dur) { if (G.evt.type === 'jump' && G.jumpModel) G.jumpModel.visible = false; G.evt = null; G.evtT = rand(1.0, 2.8) / (0.7 + sp.diff * 0.12) / (lureMode ? 1.25 : 1); } }
+  const fd = fightDiff(sp.diff);
+  const strength = (0.16 + fd * 0.075 + wf * 0.1) * (lureMode ? 1.12 : 1) / Math.pow(rodDef.strength, 0.7);
+  // 事件：挣扎 surge / 甩头 shake / 冲刺 run / 跃水 jump（fd 把 1–20 级压回旧手感，传说鱼更沉）
+  if (G.evt) { G.evt.t += dt; if (G.evt.t >= G.evt.dur) { if (G.evt.type === 'jump' && G.jumpModel) G.jumpModel.visible = false; G.evt = null; G.evtT = rand(1.0, 2.8) / (0.7 + fd * 0.12) / (lureMode ? 1.25 : 1); } }
   else {
     G.evtT -= dt;
     if (G.evtT <= 0) {
-      const opts = [['surge', 1], ['shake', lureMode || sp.predator ? 1.3 : 0.25], ['run', sp.diff >= 2.4 || wf > 0.5 ? 0.7 : 0.15], ['jump', sp.predator && G.jumpModel ? (lureMode ? 0.7 : 0.35) : 0]];
+      const opts = [['surge', 1], ['shake', lureMode || sp.predator ? 1.3 : 0.25], ['run', fd >= 2.4 || wf > 0.5 ? 0.7 : 0.15], ['jump', sp.predator && G.jumpModel ? (lureMode ? 0.7 : 0.35) : 0]];
       let r = Math.random() * opts.reduce((a, o) => a + o[1], 0), type = 'surge';
       for (const [k, w] of opts) { r -= w; if (r <= 0) { type = k; break; } }
-      const dur = { surge: rand(0.5, 1.0) + sp.diff * 0.12, shake: 0.8, run: rand(1.3, 2.2), jump: 1.0 }[type];
+      const dur = { surge: rand(0.5, 1.0) + fd * 0.12, shake: 0.8, run: rand(1.3, 2.2), jump: 1.0 }[type];
       G.evt = { type, t: 0, dur, slack: 0 };
       G.shake = type === 'shake' ? 1.4 : 1;
       spawnSplash(tackle.position, type === 'jump' ? 40 : 18, type === 'jump' ? 1.2 : 0.8);
@@ -712,7 +834,7 @@ function updateFight(dt, time, f) {
   const target = G.holding ? 0.33 + pull : pull * 0.45;
   G.tension = clamp(G.tension + (target - G.tension) * (1 - Math.exp(-dt * (e === 'shake' ? 6 : 2.6))), 0, 1.6);
   const eff = G.tension / lineMax;
-  if (G.holding && e !== 'run') G.progress += dt * (0.17 / (0.6 + sp.diff * 0.25 + wf * 0.4)) * (0.85 + 0.15 * rodDef.strength) * (eff > 0.85 ? 0.5 : 1);
+  if (G.holding && e !== 'run') G.progress += dt * (0.17 / (0.6 + fd * 0.25 + wf * 0.4)) * (0.85 + 0.15 * rodDef.strength) * (eff > 0.85 ? 0.5 : 1);
   else G.progress -= dt * (e === 'run' ? 0.07 : e === 'surge' ? 0.06 : 0.015);
   G.progress = clamp(G.progress, 0, 1);
   if (eff > 0.96) G.overT += dt; else G.overT = Math.max(0, G.overT - dt * 2);
@@ -789,14 +911,15 @@ function tick() {
     if (keys.ArrowLeft || joy.turnL) G.aim += dt * 1.6;
     if (keys.ArrowRight || joy.turnR) G.aim -= dt * 1.6;
     if (G.aim > Math.PI) G.aim -= Math.PI * 2; else if (G.aim < -Math.PI) G.aim += Math.PI * 2;
-    const fwdX = Math.sin(G.aim), fwdZ = -Math.cos(G.aim);
+    // 与抛竿 forward()、相机朝向一致：看向 (-sin, -cos)。旧式 +sin 会在转身后把摇杆左右带反。
+    const fwdX = -Math.sin(G.aim), fwdZ = -Math.cos(G.aim);
     let mx = 0, mz = 0;
     if (keys.KeyW) { mx += fwdX; mz += fwdZ; }
     if (keys.KeyS) { mx -= fwdX; mz -= fwdZ; }
     if (keys.KeyA) { mx -= fwdZ; mz += fwdX; }
     if (keys.KeyD) { mx += fwdZ; mz -= fwdX; }
     if (joy.active && (joy.nx || joy.ny)) {
-      const fwd = -joy.ny, str = joy.nx; // stick up = forward
+      const fwd = -joy.ny, str = -joy.nx; // 上推前进；左右取反，摇杆向右即向右走
       mx += fwdX * fwd + fwdZ * str;
       mz += fwdZ * fwd - fwdX * str;
     }
@@ -807,9 +930,11 @@ function tick() {
       PLAYER.z += (mz / len) * scale * PLAYER.speed * dt;
       // 限制在码头 + 岸边小屋一带
       PLAYER.x = clamp(PLAYER.x, -8, 12);
-      PLAYER.z = clamp(PLAYER.z, DOCK_END_Z + 0.5, 42);
-      // 码头较窄
-      if (PLAYER.z < 30) PLAYER.x = clamp(PLAYER.x, -1.1, 1.1);
+      const pathOn = !!(save.rainbow && world.rainbowEnd);
+      PLAYER.z = clamp(PLAYER.z, pathOn ? world.rainbowEnd.z - 0.6 : DOCK_END_Z + 0.5, 42);
+      // 码头较窄；虹桥上再收一收，免得走到光外面
+      if (PLAYER.z < DOCK_END_Z) PLAYER.x = clamp(PLAYER.x, -0.7, 0.7);
+      else if (PLAYER.z < 30) PLAYER.x = clamp(PLAYER.x, -1.1, 1.1);
     }
     const groundY = Math.max(DECK_Y, heightAt(PLAYER.x, PLAYER.z) + 0.15);
     PLAYER.eye = groundY + 1.55;
@@ -821,9 +946,11 @@ function tick() {
 
   // 交互距离检测
   nearInteract = null;
-  if (canWalk && world.interact) {
+    if (!canWalk) lookPitch = lerp(lookPitch, 0, 1 - Math.exp(-dt * 5));
+    if (canWalk && world.interact) {
     let best = null, bestD = 1e9;
     for (const [k, it] of Object.entries(world.interact)) {
+      if (it.hidden) continue;
       const d = Math.hypot(PLAYER.x - it.x, PLAYER.z - it.z);
       if (d < it.r && d < bestD) { bestD = d; best = k; }
     }
@@ -832,7 +959,10 @@ function tick() {
     if (nearInteract) {
       const it = world.interact[nearInteract];
       hint.textContent = it.label; hint.classList.remove('hidden');
-      let label = nearInteract === 'shop' ? '进入商店' : nearInteract === 'stranger' ? '与黑衣人交谈' : '卖鱼给老余';
+      let label = nearInteract === 'shop' ? '进入商店'
+        : nearInteract === 'stranger' ? (S.allMaps() ? '与黄衣人交谈' : '与黑衣人交谈')
+        : nearInteract === 'chest' ? (save.cleared ? '进入轮回' : '打开宝箱')
+        : '卖鱼给老余';
       // NPC 不在画面里时加方向箭头（渔夫站在抛竿位左手边）
       tmpV.set(it.x, DECK_Y + 1.2, it.z).project(camera);
       if (tmpV.z > 1 || Math.abs(tmpV.x) > 1) {
@@ -853,7 +983,7 @@ function tick() {
   G.shake = Math.max(0, G.shake - dt * 2);
   camera.position.set(CAM_POS.x + Math.sin(time * 0.7) * 0.01, CAM_POS.y + Math.sin(time * 1.3) * 0.012, CAM_POS.z);
   camera.rotation.y = G.aim + (Math.random() - 0.5) * G.shake * 0.01;
-  camera.rotation.x = G.pitch + (Math.random() - 0.5) * G.shake * 0.01;
+  camera.rotation.x = G.pitch + lookPitch + (Math.random() - 0.5) * G.shake * 0.01;
 
   let sag = 0.15;
   const tackleScale = clamp(tackle.position.distanceTo(CAM_POS) / 7, 1, 6) * (G.mode === 'lure' && s !== 'idle' && s !== 'charging' ? 1.4 : 1);
@@ -908,7 +1038,7 @@ function tick() {
         G.fish = TUT.on ? { sp: speciesById.carp || SPECIES[0], weight: 1.6, wf: 0.15 } : S.pickFish('float', G.castPower);
         const sens = S.rod().sens;
         G.perfectWin = 0.32 * sens;
-        G.biteWindow = (G.perfectWin + (1.15 - G.fish.sp.diff * 0.06) * sens) * (S.location().biteWin || 1);
+        G.biteWindow = (G.perfectWin + (1.15 - fightDiff(G.fish.sp.diff) * 0.06) * sens) * (S.location().biteWin || 1);
         if (TUT.on) { G.perfectWin = 0.8; G.biteWindow = 1e9; } // 教学鱼保证上钩
         AU.bite();
         spawnSplash(tackle.position, 14, 0.5); spawnRipple(tackle.position, 1.1, 1.2);
@@ -954,7 +1084,7 @@ function tick() {
         else if (Math.random() < dt * G.attract * G.attract * 1.6) {
           G.fish = G.follower.fish; G.follower = null; followShadow.visible = false;
           const sens = S.rod().sens;
-          G.perfectWin = 0.3 * sens; G.biteWindow = (G.perfectWin + (0.75 - G.fish.sp.diff * 0.04) * sens) * (S.location().biteWin || 1);
+          G.perfectWin = 0.3 * sens; G.biteWindow = (G.perfectWin + (0.75 - fightDiff(G.fish.sp.diff) * 0.04) * sens) * (S.location().biteWin || 1);
           spawnSplash(G.lp, 45, 1.2); spawnRipple(G.lp, 1.4, 1.2);
           AU.bite(); AU.reel(false);
           ui.bite.textContent = '咬饵了！点击刺鱼！'; ui.bite.classList.add('show');
@@ -1077,7 +1207,7 @@ $('startBtn').addEventListener('click', () => {
   if (!wantTut && localStorage.getItem(TUT_KEY) !== 'done') localStorage.setItem(TUT_KEY, 'done'); // 老玩家不再弹教学
   if (migrated) UI.toast(save.version >= 4 ? '存档已更新：钓点改为传说钥匙推进，进度已重置为湖湾' : '已从旧版本迁移存档，欢迎回来！', 3200);
   if (wantTut) tutStart();
-  else if (!migrated && !save.catches) UI.toast('老余（渔具店老板）在你左后方，点「卖鱼给老余」出售 · 摇杆/WASD 走动 · ⟲⟳ 转身 · 房子在岸边', 3600);
+  else if (!migrated && !save.catches) UI.toast(isMobile ? '老余在左后方，点「卖鱼给老余」出售 · 摇杆走动 · 滑动画面转身 · 房子在岸边' : '老余在左后方，点「卖鱼给老余」出售 · WASD 走动 · ←→ 转身 · 房子在岸边', 3600);
   setTimeout(genThumbsLater, 4000);
 });
 // 玩法说明（可折叠，保留旧版说明文字）
@@ -1102,7 +1232,7 @@ function tutStart() {
   tutSet('move');
 }
 const TUT_TEXT = {
-  move: () => isMobile ? '用左下角<b>摇杆</b>往前推，走到码头尽头发光的<b>钓位</b>上' : '按 <b>W</b> 往前走（A/D 平移，←/→ 转身），站到码头尽头发光的<b>钓位</b>上',
+  move: () => isMobile ? '用左下角<b>摇杆</b>往前推，<b>滑动画面</b>可以转身，走到码头尽头发光的<b>钓位</b>上' : '按 <b>W</b> 往前走（A/D 平移，←/→ 转身），站到码头尽头发光的<b>钓位</b>上',
   charge: () => isMobile ? '<b>按住</b>右下角「按住抛竿」按钮开始蓄力（先别松手）' : '<b>按住空格</b>（或按住鼠标左键）开始蓄力，先别松开',
   release: () => '看底部的力度条，到七八成时<b>松开</b>，把浮漂抛出去！',
   watch: () => '盯住<b>浮漂</b>（圆圈标记处）。轻轻点动是鱼在试口，<b>先别动</b>…',

@@ -4,7 +4,7 @@ import { Water } from '../vendor/addons/Water.js';
 import { Sky } from '../vendor/addons/Sky.js';
 import { mergeGeometries } from '../vendor/addons/BufferGeometryUtils.js';
 import { fbm, vnoise, smooth, rand } from './util.js';
-import { buildLaoYu } from './npc-laoyu.js?v=6';
+import { buildLaoYu } from './npc-laoyu.js?v=9';
 
 export const LAKE_CENTER = new THREE.Vector2(0, -320);
 export const DECK_Y = 0.9;
@@ -658,14 +658,20 @@ export function createWorld(scene, renderer, Q) {
     const makeNameTag = (text, sub, color) => {
       const cv = document.createElement('canvas'); cv.width = 256; cv.height = 96;
       const c = cv.getContext('2d');
-      c.fillStyle = 'rgba(10,20,26,0.72)';
-      if (c.roundRect) { c.beginPath(); c.roundRect(8, 8, 240, 80, 22); c.fill(); } else c.fillRect(8, 8, 240, 80);
-      c.textAlign = 'center'; c.textBaseline = 'middle';
-      c.fillStyle = color; c.font = 'bold 38px sans-serif'; c.fillText(text, 128, sub ? 38 : 48);
-      if (sub) { c.fillStyle = '#ffffff'; c.font = '24px sans-serif'; c.fillText(sub, 128, 70); }
       const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
       const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
       spr.scale.set(0.9, 0.34, 1); spr.renderOrder = 10;
+      const paint = (t, s, col) => {
+        c.clearRect(0, 0, 256, 96);
+        c.fillStyle = 'rgba(10,20,26,0.72)';
+        if (c.roundRect) { c.beginPath(); c.roundRect(8, 8, 240, 80, 22); c.fill(); } else c.fillRect(8, 8, 240, 80);
+        c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.fillStyle = col; c.font = 'bold 36px sans-serif'; c.fillText(t, 128, s ? 36 : 48);
+        if (s) { c.fillStyle = '#ffffff'; c.font = '22px sans-serif'; c.fillText(s, 128, 68); }
+        tex.needsUpdate = true;
+      };
+      paint(text, sub, color);
+      spr.userData.setLabel = paint;
       return spr;
     };
 
@@ -682,9 +688,14 @@ export function createWorld(scene, renderer, Q) {
     const fisher = buildLaoYu();
     fisher.position.set(fx, fy, fz);
     fisher.rotation.y = Math.PI - 0.6; // 侧身朝向码头中央 / 抛竿位
-    const fTag = makeNameTag('老余', '湖渔铺 · 收鱼', '#ffd54f'); fTag.position.set(0, 2.15, 0); fisher.add(fTag);
+    const fTag = makeNameTag('老余', '交情 Lv.1', '#ffd54f'); fTag.position.set(0, 2.15, 0); fisher.add(fTag);
     scene.add(fisher);
     world.fisher = fisher;
+    world.setLaoYuLevel = (lv) => {
+      const n = Math.max(1, Math.min(20, lv | 0));
+      const sub = n >= 20 ? `至交 Lv.${n}` : n >= 10 ? `熟客 Lv.${n}` : `交情 Lv.${n}`;
+      fTag.userData.setLabel('老余', sub, n >= 20 ? '#ffe082' : '#ffd54f');
+    };
 
     // 黑衣神秘人（钥匙 / 开船）
     const stranger = new THREE.Group();
@@ -712,11 +723,71 @@ export function createWorld(scene, renderer, Q) {
     stranger.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     scene.add(stranger);
     world.stranger = stranger;
+    world.setStrangerGold = (gold) => {
+      const on = !!gold;
+      coat.color.setHex(on ? 0xf0c84a : 0x1a1a22);
+      hood.color.setHex(on ? 0xe6b422 : 0x121218);
+      coat.roughness = on ? 0.48 : 0.92;
+      coat.metalness = on ? 0.42 : 0;
+      hood.roughness = on ? 0.5 : 0.95;
+      hood.metalness = on ? 0.28 : 0;
+      sTag.userData.setLabel(on ? '黄衣人' : '黑衣人', on ? '最后的钥匙' : '钥匙 · 开船', on ? '#ffe082' : '#b39ddb');
+      world.strangerGold = on;
+      if (world.interact && world.interact.stranger) {
+        world.interact.stranger.label = on ? '按 E / 点击 与黄衣人交谈' : '按 E / 点击 与黑衣人交谈';
+      }
+    };
+
+    // 通关虹桥：码头尽头向前铺一段彩虹路，尽头一只宝箱（默认隐藏）
+    const rainbow = new THREE.Group();
+    rainbow.name = 'RainbowPath';
+    rainbow.visible = false;
+    const pathColors = [0xff4d6a, 0xff8a2a, 0xffe14a, 0x5dcc4a, 0x3ec8ff, 0x6a78ff, 0xd56bff];
+    const pathZ0 = DOCK_END_Z - 0.4;
+    const pathTiles = [];
+    for (let i = 0; i < 14; i++) {
+      const tile = new THREE.Mesh(
+        new THREE.BoxGeometry(1.7, 0.1, 1.45),
+        new THREE.MeshBasicMaterial({ color: pathColors[i % pathColors.length], transparent: true, opacity: 0.92, fog: false })
+      );
+      tile.position.set(0, DECK_Y + 0.08, pathZ0 - i * 1.45);
+      rainbow.add(tile);
+      pathTiles.push(tile);
+    }
+    const chestZ = pathZ0 - 13 * 1.45;
+    const chest = new THREE.Group();
+    chest.position.set(0, DECK_Y, chestZ);
+    const chestWood = new THREE.MeshStandardMaterial({ color: 0x8a4e22, roughness: 0.7 });
+    const chestGold = new THREE.MeshStandardMaterial({ color: 0xf0c84a, roughness: 0.35, metalness: 0.7, emissive: 0x5a3a08, emissiveIntensity: 0.35 });
+    const chestBody = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.42, 0.52), chestWood);
+    chestBody.position.y = 0.24; chest.add(chestBody);
+    const chestBand = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.08, 0.54), chestGold);
+    chestBand.position.y = 0.28; chest.add(chestBand);
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.16, 0.56), chestWood);
+    lid.position.set(0, 0.5, -0.22); lid.rotation.x = -0.55; chest.add(lid);
+    const lidBand = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.06, 0.12), chestGold);
+    lidBand.position.set(0, 0.5, 0.02); chest.add(lidBand);
+    const lock = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.06), chestGold);
+    lock.position.set(0, 0.28, 0.28); chest.add(lock);
+    const cTag = makeNameTag('宝箱', '走到跟前打开', '#ffe082');
+    cTag.position.set(0, 1.35, 0); cTag.scale.set(1.15, 0.44, 1); chest.add(cTag);
+    chest.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    cTag.castShadow = false;
+    rainbow.add(chest);
+    scene.add(rainbow);
+    world.rainbow = rainbow;
+    world.rainbowEnd = { x: 0, z: chestZ };
+    world.setRainbow = (on) => {
+      rainbow.visible = !!on;
+      if (world.interact && world.interact.chest) world.interact.chest.hidden = !on;
+    };
+    world._pathTiles = pathTiles;
 
     world.interact = {
       shop: { x: hx - 0.2, z: hz - 2.7, r: 3.2, label: '按 E / 点击 进入房子商店', kind: 'shop' },
       sell: { x: fx, z: fz, r: 4.0, label: '按 E / 点击 找老余卖鱼', kind: 'sell' },
       stranger: { x: sx, z: sz, r: 3.0, label: '按 E / 点击 与黑衣人交谈', kind: 'stranger' },
+      chest: { x: 0, z: chestZ, r: 2.2, label: '按 E / 点击 打开宝箱', kind: 'chest', hidden: true },
     };
   }
 
@@ -827,6 +898,13 @@ export function createWorld(scene, renderer, Q) {
   world.update = (dt, t, camera) => {
     water.material.uniforms.time.value += dt * 0.55;
     if (world.fisher) world.fisher.userData.update(dt, t);
+    if (world.rainbow && world.rainbow.visible && world._pathTiles) {
+      for (let i = 0; i < world._pathTiles.length; i++) {
+        const tile = world._pathTiles[i];
+        tile.material.opacity = 0.78 + Math.sin(t * 2.1 + i * 0.55) * 0.18;
+        tile.position.y = DECK_Y + 0.08 + Math.sin(t * 1.3 + i * 0.45) * 0.035;
+      }
+    }
     if (world.boat) { world.boat.rotation.z = Math.sin(t * 0.8) * 0.03; world.boat.position.y = 0.12 + Math.sin(t * 1.1) * 0.04; }
     // 远距树广告牌朝向相机（限频）
     _billAcc += dt;
