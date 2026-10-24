@@ -4,7 +4,7 @@ import { Water } from '../vendor/addons/Water.js';
 import { Sky } from '../vendor/addons/Sky.js';
 import { mergeGeometries } from '../vendor/addons/BufferGeometryUtils.js';
 import { fbm, vnoise, smooth, rand } from './util.js';
-import { buildLaoYu } from './npc-laoyu.js?v=10';
+import { buildLaoYu } from './npc-laoyu.js?v=11';
 
 export const LAKE_CENTER = new THREE.Vector2(0, -320);
 export const DECK_Y = 0.9;

@@ -1,6 +1,6 @@
 // 界面：HUD、鱼护、商店、任务、装备、图鉴
-import { SPECIES, RARITY, speciesById, catchLevel } from './fish.js?v=10';
-import { RODS, LINES, NETS, BAITS, LURES, MAIN_QUESTS } from './data.js?v=10';
+import { SPECIES, RARITY, speciesById, catchLevel } from './fish.js?v=11';
+import { RODS, LINES, NETS, BAITS, LURES, MAIN_QUESTS } from './data.js?v=11';
 import { LOCATIONS, mapStatus } from './locations.js';
 
 const $ = id => document.getElementById(id);
@@ -33,7 +33,11 @@ export function createUI(save, S, ctx) {
       ? `${rod.name} · ${S.lure().name}`
       : `${rod.name} · ${S.bait().name}${S.baitId() !== 'none' ? '×' + save.bait[S.baitId()] : ''}`;
     const loc = S.location();
-    const li = $('locInfo'); if (li) li.textContent = save.cycle ? `📍 ${loc.name} · 第 ${save.cycle} 次轮回` : `📍 ${loc.name}`;
+    const li = $('locInfo');
+    if (li) {
+      const legendMul = save.cycle && S.cycleWeight ? S.cycleWeight('legend') : 1;
+      li.textContent = save.cycle ? `📍 ${loc.name} · 第 ${save.cycle} 次轮回 · 传说×${legendMul}` : `📍 ${loc.name}`;
+    }
     const pi = $('pityInfo');
     if (pi && S.pityInfo) {
       const p = S.pityInfo();
