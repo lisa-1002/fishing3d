@@ -1,14 +1,14 @@
 // 静湖垂钓 3D v4 —— 渲染、输入、台钓/露亚双玩法状态机、音效、新手教学
 import * as THREE from 'three';
-import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=11';
+import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=12';
 import { locationById } from './locations.js';
-import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails, fightDiff, catchLevel } from './fish.js?v=11';
-import { preloadQuaterniusFish, tickFishAnim } from './fish-gltf.js?v=11';
-import { RODS, LURES, BAITS } from './data.js?v=11';
-import { loadSave } from './save.js?v=11';
-import { createSystems } from './systems.js?v=11';
-import { createUI } from './ui.js?v=11';
-import { createAudio } from './audio.js?v=11';
+import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails, fightDiff, catchLevel } from './fish.js?v=12';
+import { preloadQuaterniusFish, tickFishAnim } from './fish-gltf.js?v=12';
+import { RODS, LURES, BAITS } from './data.js?v=12';
+import { loadSave } from './save.js?v=12';
+import { createSystems } from './systems.js?v=12';
+import { createUI } from './ui.js?v=12';
+import { createAudio } from './audio.js?v=12';
 import { clamp, lerp, rand } from './util.js';
 
 // ---------------- 画质 ----------------
@@ -22,7 +22,11 @@ const Q = quality === 'high'
 const { save, migrated } = loadSave();
 let UI;
 const S = createSystems(save, {
-  levelUp: l => { UI && UI.toast(`升级！钓鱼等级 Lv.${l}，商店解锁新装备`, 2600); },
+  levelUp: l => {
+    if (!UI) return;
+    const talent = S.pullTalentLabel();
+    UI.toast(talent ? `升级！钓鱼等级 Lv.${l}，${talent}` : `升级！钓鱼等级 Lv.${l}，商店解锁新装备`, 2600);
+  },
   laoyuUp: lv => { UI && UI.toast(`老余的交情到了 Lv.${lv}，收购价更高了`, 2600); if (world.setLaoYuLevel) world.setLaoYuLevel(lv); },
   questDone: t => { UI && setTimeout(() => UI.toast(`任务完成：${t}，去任务面板领取奖励`, 2600), 2700); },
   toast: m => UI && UI.toast(m),
@@ -694,7 +698,7 @@ function enterCycle() {
   syncStory();
   UI.close();
   UI.refreshHud();
-  UI.toast(`第 ${cycle} 次轮回。竿还在手上，图鉴和老余也记得你。钓点回到湖湾，传说鱼更容易遇见。`, 4600);
+  UI.toast(`第 ${cycle} 次轮回。等级和竿都还在，图鉴和老余也记得你。钓点回到湖湾，传说鱼更容易遇见。`, 4600);
 }
 async function openChest() {
   if (G.state !== 'idle') return;
@@ -706,7 +710,7 @@ async function openChest() {
   const next = (save.cycle || 0) + 1;
   const yes = await showDialogue({
     name: '轮回',
-    text: `要进入轮回吗？这是第 ${next} 次。人回到宁静湖湾，钓过的地方要重新开船，等级也从头算。鱼竿、鱼线和饵都留在身上，图鉴和老余的交情也留着。湖更认得你了：每进一轮，传说鱼的分量翻一倍，普通鱼少一半。`,
+    text: `要进入轮回吗？这是第 ${next} 次。人回到宁静湖湾，钓过的地方要重新开船。等级留着，鱼竿、鱼线和饵也留在身上，图鉴和老余的交情也留着。湖更认得你了：每进一轮，传说鱼的分量翻一倍，普通鱼少一半。`,
     okText: '进入轮回',
     cancelText: '再留一会儿',
   });
@@ -807,10 +811,11 @@ addEventListener('resize', onResize); onResize();
 
 // ---------------- 搏鱼 ----------------
 function updateFight(dt, time, f) {
-  const sp = G.fish.sp, wf = G.fish.wf, rodDef = S.rod(), lineMax = S.line().max;
+  const sp = G.fish.sp, wf = G.fish.wf, lineMax = S.line().max;
   const lureMode = G.mode === 'lure';
   const fd = fightDiff(sp.diff);
-  const strength = (0.16 + fd * 0.075 + wf * 0.1) * (lureMode ? 1.12 : 1) / Math.pow(rodDef.strength, 0.7);
+  const effStr = S.rodStrength();
+  const strength = (0.16 + fd * 0.075 + wf * 0.1) * (lureMode ? 1.12 : 1) / Math.pow(effStr, 0.7);
   // 事件：挣扎 surge / 甩头 shake / 冲刺 run / 跃水 jump（fd 把 1–20 级压回旧手感，传说鱼更沉）
   if (G.evt) { G.evt.t += dt; if (G.evt.t >= G.evt.dur) { if (G.evt.type === 'jump' && G.jumpModel) G.jumpModel.visible = false; G.evt = null; G.evtT = rand(1.0, 2.8) / (0.7 + fd * 0.12) / (lureMode ? 1.25 : 1); } }
   else {
@@ -835,7 +840,7 @@ function updateFight(dt, time, f) {
   const target = G.holding ? 0.33 + pull : pull * 0.45;
   G.tension = clamp(G.tension + (target - G.tension) * (1 - Math.exp(-dt * (e === 'shake' ? 6 : 2.6))), 0, 1.6);
   const eff = G.tension / lineMax;
-  if (G.holding && e !== 'run') G.progress += dt * (0.17 / (0.6 + fd * 0.25 + wf * 0.4)) * (0.85 + 0.15 * rodDef.strength) * (eff > 0.85 ? 0.5 : 1);
+  if (G.holding && e !== 'run') G.progress += dt * (0.17 / (0.6 + fd * 0.25 + wf * 0.4)) * (0.85 + 0.15 * effStr) * (eff > 0.85 ? 0.5 : 1);
   else G.progress -= dt * (e === 'run' ? 0.07 : e === 'surge' ? 0.06 : 0.015);
   G.progress = clamp(G.progress, 0, 1);
   if (eff > 0.96) G.overT += dt; else G.overT = Math.max(0, G.overT - dt * 2);
