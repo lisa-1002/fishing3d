@@ -1,14 +1,14 @@
 // 静湖垂钓 3D v4 —— 渲染、输入、台钓/露亚双玩法状态机、音效、新手教学
 import * as THREE from 'three';
-import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=10';
+import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=11';
 import { locationById } from './locations.js';
-import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails, fightDiff, catchLevel } from './fish.js?v=10';
-import { preloadQuaterniusFish, tickFishAnim } from './fish-gltf.js?v=10';
-import { RODS, LURES, BAITS } from './data.js?v=10';
-import { loadSave } from './save.js?v=10';
-import { createSystems } from './systems.js?v=10';
-import { createUI } from './ui.js?v=10';
-import { createAudio } from './audio.js?v=10';
+import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails, fightDiff, catchLevel } from './fish.js?v=11';
+import { preloadQuaterniusFish, tickFishAnim } from './fish-gltf.js?v=11';
+import { RODS, LURES, BAITS } from './data.js?v=11';
+import { loadSave } from './save.js?v=11';
+import { createSystems } from './systems.js?v=11';
+import { createUI } from './ui.js?v=11';
+import { createAudio } from './audio.js?v=11';
 import { clamp, lerp, rand } from './util.js';
 
 // ---------------- 画质 ----------------
@@ -694,7 +694,7 @@ function enterCycle() {
   syncStory();
   UI.close();
   UI.refreshHud();
-  UI.toast(`第 ${cycle} 次轮回。图鉴还在，老余也记得你。钓点、等级和装备重新开始。`, 4600);
+  UI.toast(`第 ${cycle} 次轮回。竿还在手上，图鉴和老余也记得你。钓点回到湖湾，传说鱼更容易遇见。`, 4600);
 }
 async function openChest() {
   if (G.state !== 'idle') return;
@@ -706,7 +706,7 @@ async function openChest() {
   const next = (save.cycle || 0) + 1;
   const yes = await showDialogue({
     name: '轮回',
-    text: `要进入轮回吗？这是第 ${next} 次。钓点、等级和装备会重新开始，图鉴和老余的交情留着，鱼种成就的奖励也不会重复发。`,
+    text: `要进入轮回吗？这是第 ${next} 次。人回到宁静湖湾，钓过的地方要重新开船，等级也从头算。鱼竿、鱼线和饵都留在身上，图鉴和老余的交情也留着。湖更认得你了：每进一轮，传说鱼的分量翻一倍，普通鱼少一半。`,
     okText: '进入轮回',
     cancelText: '再留一会儿',
   });

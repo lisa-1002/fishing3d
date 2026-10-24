@@ -1,7 +1,7 @@
 // 游戏系统：经济（出售/商店）、经验等级、任务、选鱼
-import { SPECIES, RARITY, speciesById } from './fish.js?v=10';
-import { RODS, LINES, NETS, BAITS, LURES, RARITY_BASE, LEVEL_XP, MAX_LEVEL, LAOYU_XP, LAOYU_MAX, DAILY_TEMPLATES, MAIN_QUESTS, PITY } from './data.js?v=10';
-import { writeSave } from './save.js?v=10';
+import { SPECIES, RARITY, speciesById } from './fish.js?v=11';
+import { RODS, LINES, NETS, BAITS, LURES, RARITY_BASE, LEVEL_XP, MAX_LEVEL, LAOYU_XP, LAOYU_MAX, DAILY_TEMPLATES, MAIN_QUESTS, PITY } from './data.js?v=11';
+import { writeSave } from './save.js?v=11';
 import { LOCATIONS, LOCATION_ORDER, locationById, nextKeyIdFrom, mapStatus } from './locations.js';
 
 export function createSystems(save, hooks = {}) {
@@ -158,12 +158,29 @@ export function createSystems(save, hooks = {}) {
     }
     return null;
   };
-  /** 轮回：钓点、等级、装备和大部分主线重新开始。图鉴、老余交情、鱼种成就领取记录留下。 */
+  /** 每轮回一次，传说鱼权重 ×2、普通鱼权重 ÷2，按 2^轮回次数 叠乘。稀有和史诗不改。 */
+  const CYCLE_RARITY_STEP = 2;
+  S.cycleWeight = (rarity) => {
+    const n = Math.max(0, Math.floor(Number(save.cycle) || 0));
+    const k = CYCLE_RARITY_STEP ** n;
+    if (rarity === 'common') return 1 / k;
+    if (rarity === 'legend') return k;
+    return 1;
+  };
+  /** 轮回：钓点和等级重新开始，装备留下。图鉴、老余交情、鱼种成就领取记录也留下。 */
   S.rebirth = () => {
     const cycle = (save.cycle || 0) + 1;
     const collection = save.collection || {};
     const laoyuXp = save.laoyuXp || 0;
     const uidSeq = save.uidSeq || 1;
+    const owned = {
+      rods: [...(save.owned && save.owned.rods || ['bamboo'])],
+      lines: [...(save.owned && save.owned.lines || ['nylon'])],
+      nets: [...(save.owned && save.owned.nets || ['small'])],
+      lures: [...(save.owned && save.owned.lures || [])],
+    };
+    const equip = { ...(save.equip || {}) };
+    const bait = { ...(save.bait || {}) };
     const keptClaims = {};
     for (const id of ['m5', 'm9', 'm10']) if (save.mainClaimed && save.mainClaimed[id]) keptClaims[id] = true;
     save.coins = 50 + cycle * 40;
@@ -171,9 +188,9 @@ export function createSystems(save, hooks = {}) {
     save.xp = 0;
     save.collection = collection;
     save.net = [];
-    save.owned = { rods: ['bamboo'], lines: ['nylon'], nets: ['small'], lures: [] };
-    save.bait = { worm: 10 };
-    save.equip = { mode: 'float', float: 'bamboo', lure: null, line: 'nylon', net: 'small', bait: 'worm', lureItem: null };
+    save.owned = owned;
+    save.bait = bait;
+    save.equip = equip;
     save.stats = { sold: 0, lure: 0, perfect: 0, maxW: 0, legend: 0, rareUp: 0 };
     save.daily = null;
     save.mainClaimed = keptClaims;
@@ -220,7 +237,7 @@ export function createSystems(save, hooks = {}) {
     const weights = pool.map(s => {
       const lw = loc.weights[s.id] !== undefined ? loc.weights[s.id] : 0.35; // 未点名的鱼少量出现
       const gearPow = s.rarity === 'common' ? 1 : (mod.power || 1);
-      return base[s.rarity] / counts[s.rarity] * rarMul[s.rarity] * (mod.rar[s.rarity] || 1) * (mod.attract[s.id] || 1) * lw * gearPow;
+      return base[s.rarity] / counts[s.rarity] * rarMul[s.rarity] * (mod.rar[s.rarity] || 1) * (mod.attract[s.id] || 1) * lw * gearPow * S.cycleWeight(s.rarity);
     });
     const total = weights.reduce((a, b) => a + b, 0);
     const legW = pool.reduce((a, s, i) => a + (s.rarity === 'legend' ? weights[i] : 0), 0);
