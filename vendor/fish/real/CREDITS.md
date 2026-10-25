@@ -24,7 +24,9 @@
 |---|---|---|---|
 | scan_carp.glb | 鲤，Cyprinus carpio（コイ）。游戏用于鲤鱼、黄金鲤 | CC0 コイ 🐟 Carp, Cyprinus carpio | https://sketchfab.com/3d-models/cc0-carp-cyprinus-carpio-6b404d20bab34fa99fba848060c42ca7 |
 | scan_crucian.glb | 日本白鲫，Carassius cuvieri（ゲンゴロウブナ）。游戏用于鲫鱼 | CC0 ゲンゴロウブナ 🐟 ♂ Japanese White Crucian Carp | https://sketchfab.com/3d-models/cc0-japanese-white-crucian-carp-7b0b3e4758554486ac00e5178a91056b |
-| scan_amur_catfish.glb | 鲶，Silurus asotus（ナマズ）。游戏用于鲶鱼、黄颡鱼 | CC0 ナマズ 🐟 Amur Catfish, Silurus asotus | https://sketchfab.com/3d-models/cc0-amur-catfish-silurus-asotus-0b28048d20ea4883990b0a8de2166c6f |
+| scan_amur_catfish.glb | 鲶，Silurus asotus（ナマズ）。游戏用于鲶鱼 | CC0 ナマズ 🐟 Amur Catfish, Silurus asotus | https://sketchfab.com/3d-models/cc0-amur-catfish-silurus-asotus-0b28048d20ea4883990b0a8de2166c6f |
+| scan_yellowcat.glb | 黄颡所用外形，ギギ Tachysurus nudiceps。照片本身偏黄，不再另染 | CC0 ギギ 🐟 Gigi Stream Catfish, T. nudiceps | https://sketchfab.com/3d-models/cc0-gigi-stream-catfish-t-nudiceps-b49902a84cca4620818e762d5fbe1abb |
+| scan_eel.glb | 日本鳗鲡，Anguilla japonica（ニホンウナギ）。游戏用于黄鳝 | CC0 ニホンウナギ 🐟 Japanese Eel, Anguilla japonica | https://sketchfab.com/3d-models/cc0-japanese-eel-anguilla-japonica-4e32ce898e4b4fad96860c45d9ac04af |
 | scan_snakehead.glb | 黑鱼，Channa argus（カムルチー） | CC0 カムルチー 🐟 Spotted Snakehead, Channa argus | https://sketchfab.com/3d-models/cc0-spotted-snakehead-channa-argus-f00d3f9e6f59431e9a438f5d7571645d |
 | scan_horsemouth.glb | 宽鳍鱲 / 马口所用外形，Zacco platypus（オイカワ） | CC0 オイカワ 🐟 ♂ Pale Bleak, Zacco platypus | https://sketchfab.com/3d-models/cc0-pale-bleak-zacco-platypus-b1ddc3a76994493b91204b287bba569c |
 | scan_threelips.glb | 三唇鱼 / 哈斯，Opsariichthys uncirostris（ハス）。游戏用于翘嘴 | CC0 ハス 🐟 ♂ Three-lips | https://sketchfab.com/3d-models/cc0-three-lips-399ad31978d249f6a1bb0717825e31ad |

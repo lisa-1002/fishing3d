@@ -1,7 +1,7 @@
 // 游戏系统：经济（出售/商店）、经验等级、任务、选鱼
-import { SPECIES, RARITY, speciesById } from './fish.js?v=13';
-import { RODS, LINES, NETS, BAITS, LURES, RARITY_BASE, LEVEL_XP, MAX_LEVEL, LAOYU_XP, LAOYU_MAX, DAILY_TEMPLATES, MAIN_QUESTS, PITY, pullTalentBonus, pullTalentLabel } from './data.js?v=13';
-import { writeSave } from './save.js?v=13';
+import { SPECIES, RARITY, speciesById } from './fish.js?v=14';
+import { RODS, LINES, NETS, BAITS, LURES, RARITY_BASE, LEVEL_XP, MAX_LEVEL, LAOYU_XP, LAOYU_MAX, DAILY_TEMPLATES, MAIN_QUESTS, PITY, pullTalentBonus, pullTalentLabel } from './data.js?v=14';
+import { writeSave } from './save.js?v=14';
 import { LOCATIONS, LOCATION_ORDER, locationById, nextKeyIdFrom, mapStatus } from './locations.js';
 
 export function createSystems(save, hooks = {}) {

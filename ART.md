@@ -4,13 +4,15 @@
 
 ## 鱼（当前）
 
-渔获、图鉴和跃水鱼由 `js/fish-gltf.js` 加载 `vendor/fish/real/` 的写实模型。磁盘上 18 个 GLB 都是 CC0；其中 16 个会下载。许可见 `CREDITS.md` 与 `vendor/fish/real/CREDITS.md`。
+渔获、图鉴和跃水鱼由 `js/fish-gltf.js` 加载 `vendor/fish/real/` 的写实模型。磁盘上 20 个 GLB 都是 CC0；其中 18 个会下载。许可见 `CREDITS.md` 与 `vendor/fish/real/CREDITS.md`。
 
 | 文件 | 来源 | 映射到的鱼 |
 |---|---|---|
 | `real/scan_carp.glb` | ffish.asia Sketchfab 扫描（コイ） | 鲤鱼、黄金鲤（黄金鲤加暖色） |
 | `real/scan_crucian.glb` | 同上（ゲンゴロウブナ） | 鲫鱼 |
-| `real/scan_amur_catfish.glb` | 同上（ナマズ） | 鲶鱼、黄颡鱼（黄颡加黄色） |
+| `real/scan_amur_catfish.glb` | 同上（ナマズ） | 鲶鱼 |
+| `real/scan_yellowcat.glb` | 同上（ギギ，黄颊鱼） | 黄颡鱼 |
+| `real/scan_eel.glb` | 同上（ニホンウナギ）。图鉴的黄鳝用这条鳗 | 黄鳝 |
 | `real/scan_snakehead.glb` | 同上（カムルチー） | 黑鱼 |
 | `real/scan_horsemouth.glb` | 同上（オイカワ） | 马口鱼 |
 | `real/scan_threelips.glb` | 同上（ハス，三唇鱼） | 翘嘴 |
@@ -27,7 +29,7 @@
 | `real/largemouth_bass.glb` | 同上 | 不加载（文件保留） |
 | `real/barramundi.glb` | Khronos BarramundiFish（Microsoft，CC0） | 鲈鱼、鳡鱼 |
 
-乘色、去饱和和体高体宽在 `SPECIES_MAP` 里。没有列入的 **黄鳝** 和 **甲鱼** 仍是本项目的程序化网格。白条仍是银龙染色：ハス的吻太翘，更接近翘嘴而不是白条。香鱼扫描在目录里，等图鉴有对应物种再挂上。
+乘色、去饱和和体高体宽在 `SPECIES_MAP` 里。没有列入的 **甲鱼** 仍是本项目的程序化网格。白条仍是银龙染色：ハス的吻太翘，更接近翘嘴而不是白条。香鱼扫描在目录里，等图鉴有对应物种再挂上。黄颡用ギギ扫描本身的黄色，不再把鲶染黄。
 
 进游戏前会把头转到 +X，并把体长缩放到 1，沿用原来的渔获缩放和跃水朝向。扫描件体长已经在 X；文件里头有的朝 +X，有的朝 -X，载入时统一转到 +X。一块鱼拆成身体、鳍、眼多张网格时一起烘焙，不丢掉副网格。运行时都是静态网格。泥鳅扫描自带骨骼，载入时把当前姿势烘焙进顶点，不播放那段动画。摆尾用与程序化鱼相同的顶点着色器。某个 GLB 加载失败时，该外形回退到程序化网格。抛竿、咬口、搏鱼和鱼护不依赖某一种网格。
 

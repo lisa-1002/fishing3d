@@ -13,7 +13,7 @@
 
 - 场景：湖岸、远山、树木、芦苇、码头与木纹等程序化几何和贴图（`js/world.js` 等）。山和树仍是程序化的。
 - 界面：开始屏、HUD、渔获卡等（`index.html`、`style.css`、`js/ui.js`）。
-- 黄鳝、甲鱼：程序化网格。它们没有对应的 `vendor/fish/real/` 模型。
+- 甲鱼：程序化网格。它没有对应的 `vendor/fish/real/` 模型。
 - NPC「老余」（渔具店老板）：`js/npc-laoyu.js` 全程序化 Three.js 几何（钓鱼马甲、渔夫帽、圆脸、杆秤、保温箱）。The 老余 character (`js/npc-laoyu.js`) is fully procedural Three.js geometry written for this project; no third-party model or texture assets are used.
 - 水面法线 `textures/waternormals.jpg`：本项目原创程序化贴图，以 CC0 提供。详见文末。
 
@@ -68,7 +68,9 @@
 |---|---|---|
 | `scan_carp.glb` | 鲤鱼、黄金鲤 | コイ Carp, Cyprinus carpio |
 | `scan_crucian.glb` | 鲫鱼 | ゲンゴロウブナ Japanese White Crucian Carp |
-| `scan_amur_catfish.glb` | 鲶鱼、黄颡鱼 | ナマズ Amur Catfish, Silurus asotus |
+| `scan_amur_catfish.glb` | 鲶鱼 | ナマズ Amur Catfish, Silurus asotus |
+| `scan_yellowcat.glb` | 黄颡鱼 | ギギ Gigi Stream Catfish, T. nudiceps |
+| `scan_eel.glb` | 黄鳝 | ニホンウナギ Japanese Eel, Anguilla japonica |
 | `scan_snakehead.glb` | 黑鱼 | カムルチー Spotted Snakehead, Channa argus |
 | `scan_horsemouth.glb` | 马口鱼 | オイカワ Pale Bleak, Zacco platypus |
 | `scan_threelips.glb` | 翘嘴 | ハス Three-lips, Opsariichthys uncirostris |
