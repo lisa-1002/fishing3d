@@ -4,22 +4,32 @@
 
 ## 鱼（当前）
 
-渔获、图鉴和跃水鱼由 `js/fish-gltf.js` 加载 `vendor/fish/real/` 的写实模型。这 8 个 GLB 都是 CC0，自带贴图。许可、AI 披露和原文件名见 `CREDITS.md` 与 `vendor/fish/real/CREDITS.md`。
+渔获、图鉴和跃水鱼由 `js/fish-gltf.js` 加载 `vendor/fish/real/` 的写实模型。磁盘上 18 个 GLB 都是 CC0；其中 16 个会下载。许可见 `CREDITS.md` 与 `vendor/fish/real/CREDITS.md`。
 
 | 文件 | 来源 | 映射到的鱼 |
 |---|---|---|
+| `real/scan_carp.glb` | ffish.asia Sketchfab 扫描（コイ） | 鲤鱼、黄金鲤（黄金鲤加暖色） |
+| `real/scan_crucian.glb` | 同上（ゲンゴロウブナ） | 鲫鱼 |
+| `real/scan_amur_catfish.glb` | 同上（ナマズ） | 鲶鱼、黄颡鱼（黄颡加黄色） |
+| `real/scan_snakehead.glb` | 同上（カムルチー） | 黑鱼 |
+| `real/scan_horsemouth.glb` | 同上（オイカワ） | 马口鱼 |
+| `real/scan_threelips.glb` | 同上（ハス，三唇鱼） | 翘嘴 |
+| `real/scan_loach.glb` | 同上（ドジョウ） | 泥鳅 |
+| `real/scan_bluegill.glb` | 同上（ブルーギル）。图鉴没有太阳鱼 | 罗非鱼 |
+| `real/scan_bass.glb` | 同上（オオクチバス） | 鳜鱼 |
+| `real/scan_ayu.glb` | 同上（アユ）。图鉴没有香鱼 | 不加载 |
 | `real/koi.glb` | Polyy.AI Fish Pack | 红白锦鲤王 |
-| `real/silver_arowana.glb` | 同上 | 鲤鱼、黄金鲤、草鱼、青鱼、鲢鱼、鳙鱼、鲮鱼、翘嘴、红尾鲌、白条、银鱼、金龙鱼 |
-| `real/rainbow_trout.glb` | 同上 | 虹鳟、马口鱼、狗鱼、黑鱼 |
+| `real/silver_arowana.glb` | 同上 | 草鱼、青鱼、鲢鱼、鳙鱼、鲮鱼、红尾鲌、白条、银鱼、金龙鱼 |
+| `real/rainbow_trout.glb` | 同上 | 虹鳟、狗鱼 |
 | `real/sockeye_salmon.glb` | 同上 | 哲罗鲑 |
-| `real/channel_catfish.glb` | 同上 | 鲶鱼、黄颡鱼、千年鳇鱼、泥鳅 |
-| `real/piranha.glb` | 同上 | 鲫鱼、罗非鱼、鳊鱼 |
-| `real/largemouth_bass.glb` | 同上 | 鳜鱼 |
+| `real/channel_catfish.glb` | 同上 | 千年鳇鱼 |
+| `real/piranha.glb` | 同上 | 鳊鱼 |
+| `real/largemouth_bass.glb` | 同上 | 不加载（文件保留） |
 | `real/barramundi.glb` | Khronos BarramundiFish（Microsoft，CC0） | 鲈鱼、鳡鱼 |
 
-乘色、去饱和和体高体宽在 `SPECIES_MAP` 里。没有列入的 **黄鳝** 和 **甲鱼** 仍是本项目的程序化网格。
+乘色、去饱和和体高体宽在 `SPECIES_MAP` 里。没有列入的 **黄鳝** 和 **甲鱼** 仍是本项目的程序化网格。白条仍是银龙染色：ハス的吻太翘，更接近翘嘴而不是白条。香鱼扫描在目录里，等图鉴有对应物种再挂上。
 
-进游戏前会把头转到 +X，并把体长缩放到 1，沿用原来的渔获缩放和跃水朝向。这些模型是静态网格，没有包内骨骼动画；摆尾用与程序化鱼相同的顶点着色器。某个 GLB 加载失败时，该外形回退到程序化网格。抛竿、咬口、搏鱼和鱼护不依赖某一种网格。
+进游戏前会把头转到 +X，并把体长缩放到 1，沿用原来的渔获缩放和跃水朝向。扫描件体长已经在 X；文件里头有的朝 +X，有的朝 -X，载入时统一转到 +X。一块鱼拆成身体、鳍、眼多张网格时一起烘焙，不丢掉副网格。运行时都是静态网格。泥鳅扫描自带骨骼，载入时把当前姿势烘焙进顶点，不播放那段动画。摆尾用与程序化鱼相同的顶点着色器。某个 GLB 加载失败时，该外形回退到程序化网格。抛竿、咬口、搏鱼和鱼护不依赖某一种网格。
 
 ## 历史占位（不加载）
 

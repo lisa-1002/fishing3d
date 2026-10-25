@@ -4,7 +4,12 @@
 
 作者：**刘子峻**。原创代码与程序化美术见根目录 `LICENSE`；第三方素材见 `CREDITS.md`。
 
-当前鱼模型由 `js/fish-gltf.js` 加载 `vendor/fish/real/` 的写实 CC0 GLB（见 `ART.md`）。`vendor/fish/Koi.glb`、`Goldfish.glb`、`ArmoredCatfish.glb` 是 Quaternius 历史文件，默认不加载。
+当前鱼模型由 `js/fish-gltf.js` 加载 `vendor/fish/real/` 的写实 CC0 GLB（见 `ART.md`）。鲤、黄金鲤、鲫、鲶、黄颡、黑鱼、马口、翘嘴、泥鳅、罗非、鳜鱼用 ffish.asia 的实鱼扫描；锦鲤王和其余大多鱼种仍是 Polyy / Khronos 低模。香鱼扫描在目录里但图鉴没有对应物种，不加载。`vendor/fish/Koi.glb`、`Goldfish.glb`、`ArmoredCatfish.glb` 是 Quaternius 历史文件，默认不加载。
+
+## 2026-10-25 实鱼扫描
+- 新增十件 Sketchfab CC0 扫描（ffish.asia，无 Draco）。鲤 / 黄金鲤、鲫、鲶 / 黄颡、黑鱼、马口、翘嘴（ハス）、泥鳅、罗非（蓝鳃太阳鱼）、鳜鱼（大口黑鲈）改用扫描。
+- 香鱼 `scan_ayu.glb` 留在 `vendor/fish/real/`，图鉴没有香鱼，不预载。Polyy `largemouth_bass.glb` 同样留着但不下载。
+- 同一条扫描若拆成身体、鳍、眼多块网格，会一起显示。泥鳅带骨骼，载入时把姿势烘焙成静态网格。许可见 `CREDITS.md`。
 
 ## 2026-10-18 鱼类模型改为 Quaternius CC0（已被写实模型取代）
 - 当时渔获、图鉴和跃水鱼使用 `vendor/fish/` 下的 Koi / Goldfish / ArmoredCatfish GLB（Quaternius Cute Fish，CC0）。
@@ -81,7 +86,7 @@ v1 玩家反馈“玩法单调”，v2 在保留写实画面和核心循环的�
 - 鱼种从 10 种增加到 **15 种**，新增草鱼、马口鱼、翘嘴、黑鱼、鳡鱼。图鉴里会标注每种鱼适合的钓法。
 
 ### 5.1 鱼模型写实度（近期升级）
-画面上的鱼优先用 `vendor/fish/real/` 里的写实 CC0 GLB（`js/fish-gltf.js`，见 `ART.md` 与 `CREDITS.md`）。下面的程序化网格仍保留，只在对应 GLB 加载失败，或该物种没有写实外形（黄鳝、甲鱼）时使用：
+画面上的鱼优先用 `vendor/fish/real/` 里的写实 CC0 GLB（`js/fish-gltf.js`，见 `ART.md` 与 `CREDITS.md`）。鲤、黄金鲤、鲫、鲶、黄颡、黑鱼、马口、翘嘴、泥鳅、罗非、鳜鱼是 ffish.asia 实鱼扫描；其余有模型的鱼种仍是 Polyy / Khronos 低模。下面的程序化网格仍保留，只在对应 GLB 加载失败，或该物种没有写实外形（黄鳝、甲鱼）时使用：
 - **体型按种**：鲤/锦鲤圆润深体、鲫/鳜侧扁、草鱼/翘嘴/龙鱼细长、黑鱼近圆柱、鲟/鳇细长带歪尾。
 - **鳞片贴图**：Canvas 程序化生成圆鳞/大鳞/骨板 bump，与顶点色相乘；湿润清漆（clearcoat）+ sheen 模拟湿身高光。
 - **花纹软边**：锦鲤红斑、鳜鱼豹斑、虹鳟侧带与黑点、黑鱼云斑等用噪声软过渡，避免色块硬切。
