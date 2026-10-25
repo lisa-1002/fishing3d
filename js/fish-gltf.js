@@ -15,14 +15,21 @@ const MODELS = {
   salmon:     { file: 'sockeye_salmon.glb',  axis: 'z', head: 1 },
   catfish:    { file: 'channel_catfish.glb', axis: 'z', head: 1 },
   piranha:    { file: 'piranha.glb',         axis: 'z', head: 1 },
+  // Polyy 大口黑鲈。鳜鱼已改用扫描，文件留在目录里，没有物种引用时不下载。
   bass:       { file: 'largemouth_bass.glb', axis: 'x', head: 1 },
   barramundi: { file: 'barramundi.glb',      axis: 'z', head: 1 },
-  // ffish.asia 扫描：体长在 X、头在 +X。roll 把背翻到 +Y（鲫和马口的扫描是腹面朝上）。
+  // 第一批扫描：文件里头已经朝 +X。roll 把腹面朝上的鲫、马口翻正。
   scan_carp:        { file: 'scan_carp.glb',           axis: 'x', head: 1 },
   scan_crucian:     { file: 'scan_crucian.glb',        axis: 'x', head: 1, roll: 1 },
   scan_amur:        { file: 'scan_amur_catfish.glb',   axis: 'x', head: 1 },
   scan_snakehead:   { file: 'scan_snakehead.glb',      axis: 'x', head: 1 },
   scan_horsemouth:  { file: 'scan_horsemouth.glb',     axis: 'x', head: 1, roll: 1 },
+  // 第二批：文件里头朝 -X。泥鳅、蓝鳃还要翻背。香鱼没有对应物种，不预载。
+  scan_threelips:   { file: 'scan_threelips.glb',      axis: 'x', head: -1 },
+  scan_loach:       { file: 'scan_loach.glb',          axis: 'x', head: -1, roll: 1 },
+  scan_bluegill:    { file: 'scan_bluegill.glb',       axis: 'x', head: -1, roll: 1 },
+  scan_bass:        { file: 'scan_bass.glb',           axis: 'x', head: -1 },
+  scan_ayu:         { file: 'scan_ayu.glb',            axis: 'x', head: -1 },
 };
 
 // 物种 → 模型 + 色调(乘色) + 体高/体宽缩放。未列出的物种（黄鳝、甲鱼）走程序化网格。
@@ -31,14 +38,14 @@ const SPECIES_MAP = {
   carp:       { m: 'scan_carp' },
   goldcarp:   { m: 'scan_carp', tint: [1.18, 1.02, 0.62], glow: 0.06 },
   crucian:    { m: 'scan_crucian' },
-  tilapia:    { m: 'piranha', tint: [0.66, 0.72, 0.78], desat: 0.85, h: 0.95 },
+  tilapia:    { m: 'scan_bluegill' },
   bream:      { m: 'piranha', tint: [1.0, 1.0, 0.97], desat: 0.95, h: 0.88, w: 0.75 },
   grass:      { m: 'arowana', tint: [0.72, 0.76, 0.5], h: 0.95 },
   blackcarp:  { m: 'arowana', tint: [0.42, 0.46, 0.46], h: 1.0 },
   silvercarp: { m: 'arowana', tint: [0.96, 0.97, 1.0], h: 1.15 },
   bighead:    { m: 'arowana', tint: [0.62, 0.6, 0.55], h: 1.15 },
   mudcarp:    { m: 'arowana', tint: [0.82, 0.84, 0.88], h: 1.0 },
-  culter:     { m: 'arowana', tint: [0.98, 0.98, 1.0], h: 0.85, w: 0.85 },
+  culter:     { m: 'scan_threelips' },
   redtail:    { m: 'arowana', tint: [0.95, 0.9, 0.88], h: 0.95 },
   bleak:      { m: 'arowana', tint: [1.0, 1.0, 1.0], h: 0.75, w: 0.8 },
   icefish:    { m: 'arowana', tint: [1.0, 1.0, 1.0], h: 0.6, w: 0.7 },
@@ -50,11 +57,11 @@ const SPECIES_MAP = {
   taimen:     { m: 'salmon', tint: [0.72, 0.6, 0.5] },
   gancyu:     { m: 'barramundi', tint: [0.95, 0.9, 0.75], h: 0.8 },
   perch:      { m: 'barramundi' },
-  mandarin:   { m: 'bass', tint: [1.0, 0.85, 0.6] },
+  mandarin:   { m: 'scan_bass' },
   catfish:    { m: 'scan_amur' },
   yellowcat:  { m: 'scan_amur', tint: [1.15, 0.88, 0.38] },
   sturgeon:   { m: 'catfish', tint: [0.68, 0.7, 0.74], h: 0.75, w: 0.85 },
-  loach:      { m: 'catfish', tint: [0.75, 0.62, 0.45], h: 0.55, w: 0.6 },
+  loach:      { m: 'scan_loach' },
 };
 
 /** @type {Record<string, { parts: { geometry: THREE.BufferGeometry, material: THREE.Material }[] }>} */
@@ -96,6 +103,7 @@ function bake(scene, cfg) {
   if (cfg.roll) rot.premultiply(new THREE.Matrix4().makeRotationX(Math.PI));
   const geos = meshes.map((mesh) => {
     const g = toFloat(mesh.geometry.clone());
+    poseSkinned(mesh, g);
     g.applyMatrix4(mesh.matrixWorld);
     g.applyMatrix4(rot);
     g.computeBoundingBox();
@@ -116,6 +124,22 @@ function bake(scene, cfg) {
   return { parts };
 }
 
+const _skinPos = new THREE.Vector3();
+
+/** 泥鳅扫描带骨骼。把当前姿势烘焙进顶点，后面的摆尾仍走静态网格着色器。 */
+function poseSkinned(mesh, geometry) {
+  if (!mesh.isSkinnedMesh || !mesh.skeleton) return;
+  mesh.skeleton.update();
+  const pos = geometry.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    _skinPos.fromBufferAttribute(pos, i);
+    mesh.applyBoneTransform(i, _skinPos);
+    pos.setXYZ(i, _skinPos.x, _skinPos.y, _skinPos.z);
+  }
+  geometry.deleteAttribute('skinIndex');
+  geometry.deleteAttribute('skinWeight');
+}
+
 function loadOne(loader, key, cfg) {
   return new Promise((resolve) => {
     loader.load(BASE + cfg.file, (gltf) => {
@@ -133,8 +157,11 @@ function loadOne(loader, key, cfg) {
 export function preloadQuaterniusFish() {
   if (preloadPromise) return preloadPromise;
   const loader = new GLTFLoader();
+  const used = new Set(Object.values(SPECIES_MAP).map((spec) => spec.m));
   preloadPromise = Promise.all(
-    Object.entries(MODELS).map(([key, cfg]) => loadOne(loader, key, cfg)),
+    Object.entries(MODELS)
+      .filter(([key]) => used.has(key))
+      .map(([key, cfg]) => loadOne(loader, key, cfg)),
   ).then(() => Object.keys(assets));
   return preloadPromise;
 }

@@ -71,6 +71,11 @@
 | `scan_amur_catfish.glb` | 鲶鱼、黄颡鱼 | ナマズ Amur Catfish, Silurus asotus |
 | `scan_snakehead.glb` | 黑鱼 | カムルチー Spotted Snakehead, Channa argus |
 | `scan_horsemouth.glb` | 马口鱼 | オイカワ Pale Bleak, Zacco platypus |
+| `scan_threelips.glb` | 翘嘴 | ハス Three-lips, Opsariichthys uncirostris |
+| `scan_loach.glb` | 泥鳅 | ドジョウ Japanese Common Loach |
+| `scan_bluegill.glb` | 罗非鱼（图鉴无太阳鱼） | ブルーギル Bluegill, Lepomis macrochirus |
+| `scan_bass.glb` | 鳜鱼 | オオクチバス Micropterus sp. |
+| `scan_ayu.glb` | 不加载（图鉴无香鱼） | アユ Ayu Sweetfish |
 
 ## 历史鱼模型（默认不加载）
 
