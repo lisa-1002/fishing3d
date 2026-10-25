@@ -1,7 +1,7 @@
 // 游戏系统：经济（出售/商店）、经验等级、任务、选鱼
-import { SPECIES, RARITY, speciesById } from './fish.js?v=11';
-import { RODS, LINES, NETS, BAITS, LURES, RARITY_BASE, LEVEL_XP, MAX_LEVEL, LAOYU_XP, LAOYU_MAX, DAILY_TEMPLATES, MAIN_QUESTS, PITY } from './data.js?v=11';
-import { writeSave } from './save.js?v=11';
+import { SPECIES, RARITY, speciesById } from './fish.js?v=12';
+import { RODS, LINES, NETS, BAITS, LURES, RARITY_BASE, LEVEL_XP, MAX_LEVEL, LAOYU_XP, LAOYU_MAX, DAILY_TEMPLATES, MAIN_QUESTS, PITY, pullTalentBonus, pullTalentLabel } from './data.js?v=12';
+import { writeSave } from './save.js?v=12';
 import { LOCATIONS, LOCATION_ORDER, locationById, nextKeyIdFrom, mapStatus } from './locations.js';
 
 export function createSystems(save, hooks = {}) {
@@ -20,6 +20,10 @@ export function createSystems(save, hooks = {}) {
     return Math.max(0, Math.min(1, (save.xp - prev) / (next - prev)));
   };
   S.addXp = (n) => { const before = S.level(); save.xp += n; const after = S.level(); if (after > before) emit('levelUp', after); };
+  S.pullTalent = () => pullTalentBonus(S.level());
+  S.pullTalentLabel = () => pullTalentLabel(S.level());
+  // 搏鱼用的有效拉力：竿本身的 strength，再乘 41–50 级天赋（40 级及以下为 1）
+  S.rodStrength = () => S.rod().strength * (1 + S.pullTalent());
   // 老余交情：只在玩家主动卖鱼时上涨，满级 20
   S.laoyuLevel = () => {
     let l = 1;
@@ -167,12 +171,13 @@ export function createSystems(save, hooks = {}) {
     if (rarity === 'legend') return k;
     return 1;
   };
-  /** 轮回：钓点和等级重新开始，装备留下。图鉴、老余交情、鱼种成就领取记录也留下。 */
+  /** 轮回：钓点重新开始，等级、经验和装备留下。图鉴、老余交情，以及已领取的等级、鱼种成就也留下。 */
   S.rebirth = () => {
     const cycle = (save.cycle || 0) + 1;
     const collection = save.collection || {};
     const laoyuXp = save.laoyuXp || 0;
     const uidSeq = save.uidSeq || 1;
+    const xp = save.xp || 0;
     const owned = {
       rods: [...(save.owned && save.owned.rods || ['bamboo'])],
       lines: [...(save.owned && save.owned.lines || ['nylon'])],
@@ -182,10 +187,12 @@ export function createSystems(save, hooks = {}) {
     const equip = { ...(save.equip || {}) };
     const bait = { ...(save.bait || {}) };
     const keptClaims = {};
-    for (const id of ['m5', 'm9', 'm10']) if (save.mainClaimed && save.mainClaimed[id]) keptClaims[id] = true;
+    for (const q of MAIN_QUESTS) {
+      if ((q.type === 'level' || q.type === 'species') && save.mainClaimed && save.mainClaimed[q.id]) keptClaims[q.id] = true;
+    }
     save.coins = 50 + cycle * 40;
     save.catches = 0;
-    save.xp = 0;
+    save.xp = xp;
     save.collection = collection;
     save.net = [];
     save.owned = owned;

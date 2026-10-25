@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from '../vendor/addons/RoomEnvironment.js';
 import { vnoise, hash, smooth } from './util.js';
 import { buildHeroCarp, isHeroSpecies, heroVariantFor } from './fish-hero-carp.js';
-import { buildQuaterniusFish } from './fish-gltf.js?v=11';
+import { buildQuaterniusFish } from './fish-gltf.js?v=12';
 
 export const RARITY = {
   common: { name: '普通', color: '#d5dde2', weight: 62 },

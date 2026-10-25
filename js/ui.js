@@ -1,6 +1,6 @@
 // 界面：HUD、鱼护、商店、任务、装备、图鉴
-import { SPECIES, RARITY, speciesById, catchLevel } from './fish.js?v=11';
-import { RODS, LINES, NETS, BAITS, LURES, MAIN_QUESTS } from './data.js?v=11';
+import { SPECIES, RARITY, speciesById, catchLevel } from './fish.js?v=12';
+import { RODS, LINES, NETS, BAITS, LURES, MAIN_QUESTS } from './data.js?v=12';
 import { LOCATIONS, mapStatus } from './locations.js';
 
 const $ = id => document.getElementById(id);
@@ -29,9 +29,11 @@ export function createUI(save, S, ctx) {
     mb.innerHTML = save.equip.mode === 'lure' ? '<b>露亚</b><small>切换台钓</small>' : `<b>台钓</b><small>${lureOk ? '切换露亚' : '露亚未解锁'}</small>`;
     mb.classList.toggle('lure', save.equip.mode === 'lure');
     const rod = S.rod();
-    $('gearInfo').textContent = save.equip.mode === 'lure'
+    const talent = S.pullTalentLabel ? S.pullTalentLabel() : '';
+    const gear = save.equip.mode === 'lure'
       ? `${rod.name} · ${S.lure().name}`
       : `${rod.name} · ${S.bait().name}${S.baitId() !== 'none' ? '×' + save.bait[S.baitId()] : ''}`;
+    $('gearInfo').textContent = talent ? `${gear} · ${talent}` : gear;
     const loc = S.location();
     const li = $('locInfo');
     if (li) {
@@ -199,7 +201,9 @@ export function createUI(save, S, ctx) {
     pTitle.innerHTML = '装备';
     tabs([]);
     const e = save.equip;
-    let h = `<div class="sec">钓法</div><div class="opts">
+    const talent = S.pullTalentLabel ? S.pullTalentLabel() : '';
+    let h = talent ? `<div class="sec">${talent} · 41 到 50 级，每级 +2.5%，满级 +25%</div>` : '';
+    h += `<div class="sec">钓法</div><div class="opts">
       ${opt('mode', 'float', '台钓', '挂饵等漂，看准黑漂提竿', e.mode === 'float')}
       ${opt('mode', 'lure', '露亚', S.canLure() ? '主动收线，诱鱼攻击' : '完成主线「初次垂钓」或在商店购买露亚竿', e.mode === 'lure')}</div>`;
     h += `<div class="sec">台钓竿</div><div class="opts">${save.owned.rods.filter(id => RODS[id].type === 'float').map(id => opt('float', id, RODS[id].name, `拉力${RODS[id].strength} 灵敏${RODS[id].sens} 投远${RODS[id].cast}`, e.float === id)).join('')}</div>`;
