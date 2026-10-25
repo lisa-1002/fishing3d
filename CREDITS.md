@@ -60,6 +60,18 @@
 |---|---|---|
 | `barramundi.glb` | Khronos glTF-Sample-Assets 的 BarramundiFish，Microsoft 贡献。https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/BarramundiFish | CC0 1.0 |
 
+### ffish.asia / Sketchfab 扫描
+
+作者：ffish.asia / floraZia.com（Sketchfab [`ffishAsia-and-floraZia`](https://sketchfab.com/ffishAsia-and-floraZia)）。许可 CC0 1.0。实鱼摄影测量，无 Draco。逐文件俗名与模型页见 `vendor/fish/real/CREDITS.md`。
+
+| 文件 | 游戏中的鱼 | 扫描俗名 |
+|---|---|---|
+| `scan_carp.glb` | 鲤鱼、黄金鲤 | コイ Carp, Cyprinus carpio |
+| `scan_crucian.glb` | 鲫鱼 | ゲンゴロウブナ Japanese White Crucian Carp |
+| `scan_amur_catfish.glb` | 鲶鱼、黄颡鱼 | ナマズ Amur Catfish, Silurus asotus |
+| `scan_snakehead.glb` | 黑鱼 | カムルチー Spotted Snakehead, Channa argus |
+| `scan_horsemouth.glb` | 马口鱼 | オイカワ Pale Bleak, Zacco platypus |
+
 ## 历史鱼模型（默认不加载）
 
 `vendor/fish/Koi.glb`、`Goldfish.glb`、`ArmoredCatfish.glb` 来自 Quaternius **Animated Cute Fish Pack**（CC0）。
