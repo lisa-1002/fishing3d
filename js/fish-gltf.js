@@ -30,9 +30,12 @@ const MODELS = {
   scan_bluegill:    { file: 'scan_bluegill.glb',       axis: 'x', head: -1, roll: 1 },
   scan_bass:        { file: 'scan_bass.glb',           axis: 'x', head: -1 },
   scan_ayu:         { file: 'scan_ayu.glb',            axis: 'x', head: -1 },
+  // 黄鳝、黄颡：文件里头朝 -X，背面已经朝上。
+  scan_eel:         { file: 'scan_eel.glb',            axis: 'x', head: -1 },
+  scan_yellowcat:   { file: 'scan_yellowcat.glb',      axis: 'x', head: -1 },
 };
 
-// 物种 → 模型 + 色调(乘色) + 体高/体宽缩放。未列出的物种（黄鳝、甲鱼）走程序化网格。
+// 物种 → 模型 + 色调(乘色) + 体高/体宽缩放。未列出的物种（甲鱼）走程序化网格。
 const SPECIES_MAP = {
   koi:        { m: 'koi' },
   carp:       { m: 'scan_carp' },
@@ -59,9 +62,10 @@ const SPECIES_MAP = {
   perch:      { m: 'barramundi' },
   mandarin:   { m: 'scan_bass' },
   catfish:    { m: 'scan_amur' },
-  yellowcat:  { m: 'scan_amur', tint: [1.15, 0.88, 0.38] },
+  yellowcat:  { m: 'scan_yellowcat' },
   sturgeon:   { m: 'catfish', tint: [0.68, 0.7, 0.74], h: 0.75, w: 0.85 },
   loach:      { m: 'scan_loach' },
+  eel:        { m: 'scan_eel' },
 };
 
 /** @type {Record<string, { parts: { geometry: THREE.BufferGeometry, material: THREE.Material }[] }>} */
