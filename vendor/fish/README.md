@@ -2,15 +2,15 @@
 
 ## 当前加载
 
-`js/fish-gltf.js` 预载 `real/` 里被物种用到的 18 个写实 GLB（带贴图），映射到 29 个物种。甲鱼没有对应模型，仍用程序化网格。来源、AI 披露与许可见 [`real/CREDITS.md`](real/CREDITS.md) 与仓库根目录 [`CREDITS.md`](../../CREDITS.md)。
+`js/fish-gltf.js` 按当前钓场加载 `real/` 里的写实 GLB，不再一次预载全部扫描。甲鱼没有对应模型，仍用程序化网格。扫描清单见 `js/scan-catalog.js`。来源与许可见 [`real/CREDITS.md`](real/CREDITS.md) 与仓库根目录 [`CREDITS.md`](../../CREDITS.md)。
 
 | 文件 | 来源 | 许可 |
 |---|---|---|
-| `real/scan_carp.glb`、`scan_crucian.glb`、`scan_amur_catfish.glb`、`scan_snakehead.glb`、`scan_horsemouth.glb`、`scan_threelips.glb`、`scan_loach.glb`、`scan_bluegill.glb`、`scan_bass.glb`、`scan_yellowcat.glb`、`scan_eel.glb` | ffish.asia / Sketchfab `ffishAsia-and-floraZia` 摄影测量扫描 | CC0 1.0 |
+| `real/scan_*.glb` | ffish.asia / Sketchfab `ffishAsia-and-floraZia` 摄影测量扫描 | CC0 1.0 |
 | `real/koi.glb`、`silver_arowana.glb`、`rainbow_trout.glb`、`sockeye_salmon.glb`、`channel_catfish.glb`、`piranha.glb` | Polyy.AI「[FREE] 3D Fish Pack」 | CC0 1.0 |
 | `real/barramundi.glb` | Khronos BarramundiFish（Microsoft） | CC0 1.0 |
 
-扫描件对应：鲤与黄金鲤、鲫、鲶、黄颡（ギギ）、黑鱼、马口、翘嘴（ハス）、泥鳅、罗非（蓝鳃太阳鱼）、鳜鱼（大口黑鲈）、黄鳝（日本鳗鲡）。`scan_ayu.glb`（香鱼）和 Polyy `largemouth_bass.glb` 留在目录里，没有物种引用，不下载。载入时保留同一条鱼的多块网格（身体、鳍、眼），丢掉参照立方体；泥鳅的骨骼姿势会烘焙进顶点。没有 Draco。
+扫描件按 `js/scan-catalog.js` 挂到物种。鲤与黄金鲤、鲫、鲶、黄颡、黑鱼、马口、泥鳅、黄鳝沿用原来的物种；香鱼、蓝鳃太阳鱼、大口黑鲈、三唇鱼是新增物种，后三件仍同时给罗非、鳜鱼、翘嘴用。Polyy `largemouth_bass.glb` 没有物种引用，不下载。载入时保留同一条鱼的多块网格（身体、鳍、眼），丢掉参照立方体；泥鳅的骨骼姿势会烘焙进顶点。没有 Draco。按钓场下载，不在开局拉完全部扫模。
 
 载入时把头转到 +X、体长缩放到 1。模型是静态网格，摆尾用顶点着色器。某个 GLB 加载失败时，该外形回退到 `js/fish.js` 的程序化鱼。
 

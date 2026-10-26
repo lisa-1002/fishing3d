@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { RoomEnvironment } from '../vendor/addons/RoomEnvironment.js';
 import { vnoise, hash, smooth } from './util.js';
 import { buildHeroCarp, isHeroSpecies, heroVariantFor } from './fish-hero-carp.js';
-import { buildQuaterniusFish } from './fish-gltf.js?v=14';
+import { buildQuaterniusFish } from './fish-gltf.js?v=15';
+import { SCAN_SPECIES } from './scan-catalog.js?v=15';
 
 export const RARITY = {
   common: { name: '普通', color: '#d5dde2', weight: 62 },
@@ -46,7 +47,7 @@ export const SPECIES = [
   { id: 'sturgeon', name: '千年鳇鱼', rarity: 'legend', method: 'float', w: [40, 160], price: 900, diff: 20, height: 0.14, thick: 1.05, shape: 'sturgeon', scale: 0.4, top: 0x3a3e40, belly: 0xd0c8b8, fin: 0x3c4046, pattern: 'scutes', metal: 0.12, tail: 'shark', desc: '远古巨兽，体覆骨板，需要极大的耐心与技巧。' },
   { id: 'gancyu', name: '鳡鱼', rarity: 'legend', method: 'lure', w: [10, 40], price: 750, diff: 19, height: 0.17, thick: 0.68, shape: 'long', scale: 0.8, top: 0x6a6440, belly: 0xf4e8b0, fin: 0xb08a3a, pattern: 'silver', metal: 0.55, tail: 'fork', predator: true, desc: '淡水鱼中的“水中老虎”，速度极快，冲刺凶猛。' },
   { id: 'taimen', name: '哲罗鲑', rarity: 'legend', method: 'lure', w: [8, 35], price: 800, diff: 19, height: 0.22, thick: 0.6, shape: 'stream', scale: 0.75, top: 0x8a4030, belly: 0xf0d8b0, fin: 0xa05038, pattern: 'spots', metal: 0.4, tail: 'fork', predator: true, desc: '冷水巨鲑，大坝深处的传说级掠食者。' },
-];
+].concat(SCAN_SPECIES);
 export const speciesById = Object.fromEntries(SPECIES.map(s => [s.id, s]));
 
 /** 鱼种等级 1–20 → 搏鱼用的旧手感刻度。1 级约 0.8，20 级约 7（比原先 diff 5 的鳇鱼更沉）。 */

@@ -1,14 +1,14 @@
 // 静湖垂钓 3D v4 —— 渲染、输入、台钓/露亚双玩法状态机、音效、新手教学
 import * as THREE from 'three';
-import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=14';
-import { locationById } from './locations.js';
-import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails, fightDiff, catchLevel } from './fish.js?v=14';
-import { preloadQuaterniusFish, tickFishAnim } from './fish-gltf.js?v=14';
-import { RODS, LURES, BAITS } from './data.js?v=14';
-import { loadSave } from './save.js?v=14';
-import { createSystems } from './systems.js?v=14';
-import { createUI } from './ui.js?v=14';
-import { createAudio } from './audio.js?v=14';
+import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=15';
+import { locationById, LOCATION_ORDER, LOCATIONS } from './locations.js?v=15';
+import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails, fightDiff, catchLevel } from './fish.js?v=15';
+import { preloadForLocation, preloadSpeciesModel, tickFishAnim } from './fish-gltf.js?v=15';
+import { RODS, LURES, BAITS } from './data.js?v=15';
+import { loadSave } from './save.js?v=15';
+import { createSystems } from './systems.js?v=15';
+import { createUI } from './ui.js?v=15';
+import { createAudio } from './audio.js?v=15';
 import { clamp, lerp, rand } from './util.js';
 
 // ---------------- 画质 ----------------
@@ -70,6 +70,7 @@ const world = createWorld(scene, renderer, Q);
 function applyCurrentLocation() {
   const loc = locationById[save.location] || locationById.lake;
   world.applyTheme(loc.theme, renderer);
+  preloadForLocation(loc.id);
 }
 function syncStory() {
   if (world.setLaoYuLevel) world.setLaoYuLevel(S.laoyuLevel());
@@ -78,8 +79,8 @@ function syncStory() {
 }
 applyCurrentLocation();
 syncStory();
-// Quaternius CC0 鱼（失败时 buildFish 回退程序化网格）
-const fishAssetsReady = preloadQuaterniusFish();
+// 只预载当前钓场会用到的写实鱼。失败时 buildFish 回退程序化网格。
+const fishAssetsReady = preloadForLocation(save.location || 'lake');
 
 // ---------------- 鱼竿（可换外观、分段弯曲） ----------------
 const rodRig = new THREE.Group();
@@ -358,6 +359,13 @@ function startReturn(msg) {
   G.retrieveFrom.copy(tackle.position); G.retrieveT = 0;
   setState('returning');
 }
+function mountJumpModel(sp) {
+  if (G.jumpModel) { scene.remove(G.jumpModel); G.jumpModel.userData.dispose?.(); G.jumpModel = null; }
+  if (!sp?.predator || !G.fish) return;
+  const m = buildFish(sp);
+  const L = clamp(0.42 * Math.cbrt(G.fish.weight), 0.15, 2.4);
+  m.scale.setScalar(L); m.visible = false; scene.add(m); G.jumpModel = m;
+}
 function hookFish(perfect) {
   G.perfect = perfect;
   if (perfect) { S.notePerfect(); flashText(G.mode === 'lure' ? '完美刺鱼！' : '完美提竿！'); } else flashText('中鱼！', '#ffffff');
@@ -367,10 +375,7 @@ function hookFish(perfect) {
   followShadow.visible = false;
   spawnSplash(tackle.position, 25, 0.8);
   AU.hook();
-  if (G.fish.sp.predator) {
-    const m = buildFish(G.fish.sp); const L = clamp(0.42 * Math.cbrt(G.fish.weight), 0.15, 2.4);
-    m.scale.setScalar(L); m.visible = false; scene.add(m); G.jumpModel = m;
-  }
+  if (G.fish.sp.predator) mountJumpModel(G.fish.sp);
   if (navigator.vibrate) navigator.vibrate(40);
 }
 function landFish() {
@@ -381,6 +386,22 @@ function landFish() {
   if (G.jumpModel) { scene.remove(G.jumpModel); G.jumpModel.userData.dispose(); G.jumpModel = null; }
   spawnSplash(tackle.position, 60, 1.3); spawnRipple(tackle.position, 1.5);
   const m = buildFish(sp);
+  const caughtId = sp.id;
+  preloadSpeciesModel(sp).then(() => {
+    if (!G.catchModel || G.catchModel.userData.fromGltf) return;
+    if (!G.fish || G.fish.sp.id !== caughtId) return;
+    camera.remove(G.catchModel);
+    G.catchModel.userData.dispose?.();
+    const next = buildFish(sp);
+    next.scale.copy(m.scale);
+    next.position.copy(m.position);
+    next.rotation.copy(m.rotation);
+    next.userData.uniforms.uAmp.value = m.userData.uniforms.uAmp.value;
+    next.userData.uniforms.uSpeed.value = m.userData.uniforms.uSpeed.value;
+    if (next.userData.uniforms.uFin) next.userData.uniforms.uFin.value = 1;
+    camera.add(next);
+    G.catchModel = next;
+  });
   const hero = !!m.userData.isHeroCarp;
   m.scale.setScalar(sp.id === 'sturgeon' || sp.id === 'gancyu' ? 0.72 : (hero ? 0.62 : 0.5));
   m.position.set(0, innerWidth < innerHeight ? 0.14 : 0.08, hero ? -0.95 : -1.05);
@@ -723,7 +744,7 @@ async function talkToStranger() {
   if (gold && save.keys && save.keys.rainbow && !save.rainbow) {
     const yes = await showDialogue({
       name: who,
-      text: '五处水域都走过了。这把钥匙……不一样。交给我吧。',
+      text: `${LOCATION_ORDER.length}处水域都走过了。这把钥匙……不一样。交给我吧。`,
       okText: '交出虹桥钥匙',
       cancelText: '下次再说',
     });
@@ -748,14 +769,13 @@ async function talkToStranger() {
   if (!keyId) {
     if (gold) {
       await showDialogue({ name: who, text: '衣裳换了颜色。再钓一条传说鱼，把最后那把钥匙交给我。', okText: '明白了' });
-    } else if (S.unlockedCount() >= 5) {
-      await showDialogue({ name: who, text: '五湖四海，你都去过了。钥匙的故事到此为止。', okText: '告辞' });
     } else {
-      await showDialogue({
-        name: who,
-        text: '传说之鱼身上藏着下一处水域的钥匙。钓到它，再来找我——我会开船送你去。',
-        okText: '明白了',
-      });
+      const nextLocked = LOCATION_ORDER.find(id => id !== 'lake' && !save.unlockedLocations[id]);
+      const src = LOCATIONS.find(l => l.nextId === nextLocked);
+      const hint = nextLocked && src
+        ? `下一处是「${locationById[nextLocked].name}」。在「${src.name}」钓到传说鱼，钥匙就在它身上。`
+        : '传说之鱼身上藏着下一处水域的钥匙。钓到它，再来找我——我会开船送你去。';
+      await showDialogue({ name: who, text: hint, okText: '明白了' });
     }
     return;
   }
@@ -1042,6 +1062,7 @@ function tick() {
       G.nibbling = Math.max(0, G.nibbling - dt);
       if (G.t >= G.waitT) {
         G.fish = TUT.on ? { sp: speciesById.carp || SPECIES[0], weight: 1.6, wf: 0.15 } : S.pickFish('float', G.castPower);
+        preloadSpeciesModel(G.fish.sp);
         const sens = S.rod().sens;
         G.perfectWin = 0.32 * sens;
         G.biteWindow = (G.perfectWin + (1.15 - fightDiff(G.fish.sp.diff) * 0.06) * sens) * (S.location().biteWin || 1);
@@ -1074,6 +1095,7 @@ function tick() {
       // 鱼追饵
       if (!G.follower && G.attract > 0.35) {
         G.follower = { fish: S.pickFish('lure', G.castPower), off: 2.5 };
+        preloadSpeciesModel(G.follower.fish.sp);
         followShadow.visible = true; UI.toast('有鱼在追饵！保持节奏', 1400);
       }
       if (G.follower) {
@@ -1089,6 +1111,7 @@ function tick() {
         if (G.attract < 0.12) { G.follower = null; followShadow.visible = false; UI.toast('鱼失去兴趣游走了', 1400); }
         else if (Math.random() < dt * G.attract * G.attract * 1.6) {
           G.fish = G.follower.fish; G.follower = null; followShadow.visible = false;
+          preloadSpeciesModel(G.fish.sp);
           const sens = S.rod().sens;
           G.perfectWin = 0.3 * sens; G.biteWindow = (G.perfectWin + (0.75 - fightDiff(G.fish.sp.diff) * 0.04) * sens) * (S.location().biteWin || 1);
           spawnSplash(G.lp, 45, 1.2); spawnRipple(G.lp, 1.4, 1.2);

@@ -5,9 +5,12 @@
 // 扫描件没有 Draco，GLTFLoader 直接读 WebP + KHR_mesh_quantization。
 import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/addons/GLTFLoader.js';
+import { locationById } from './locations.js?v=15';
+import { SCAN_MODELS, SCAN_SPECIES_MAP, SPECIES_PLACES } from './scan-catalog.js?v=15';
 
 const BASE = 'vendor/fish/real/';
-// axis：模型体长所在轴；head：头部在该轴的正(+1)或负(-1)方向
+// axis：模型体长所在轴；head：头部在该轴的正(+1)或负(-1)方向。
+// 扫描件的朝向在 scan-catalog.js。还没逐条看过的新扫模沿用近期批次：体长在 X，头朝 -X，载入时转到 +X。
 const MODELS = {
   koi:        { file: 'koi.glb',             axis: 'z', head: 1 },
   arowana:    { file: 'silver_arowana.glb',  axis: 'z', head: 1 },
@@ -15,28 +18,14 @@ const MODELS = {
   salmon:     { file: 'sockeye_salmon.glb',  axis: 'z', head: 1 },
   catfish:    { file: 'channel_catfish.glb', axis: 'z', head: 1 },
   piranha:    { file: 'piranha.glb',         axis: 'z', head: 1 },
-  // Polyy 大口黑鲈。鳜鱼已改用扫描，文件留在目录里，没有物种引用时不下载。
+  // Polyy 大口黑鲈。鳜鱼和扫模鲈都不用这件，没有物种引用时不下载。
   bass:       { file: 'largemouth_bass.glb', axis: 'x', head: 1 },
   barramundi: { file: 'barramundi.glb',      axis: 'z', head: 1 },
-  // 第一批扫描：文件里头已经朝 +X。roll 把腹面朝上的鲫、马口翻正。
-  scan_carp:        { file: 'scan_carp.glb',           axis: 'x', head: 1 },
-  scan_crucian:     { file: 'scan_crucian.glb',        axis: 'x', head: 1, roll: 1 },
-  scan_amur:        { file: 'scan_amur_catfish.glb',   axis: 'x', head: 1 },
-  scan_snakehead:   { file: 'scan_snakehead.glb',      axis: 'x', head: 1 },
-  scan_horsemouth:  { file: 'scan_horsemouth.glb',     axis: 'x', head: 1, roll: 1 },
-  // 第二批：文件里头朝 -X。泥鳅、蓝鳃还要翻背。香鱼没有对应物种，不预载。
-  scan_threelips:   { file: 'scan_threelips.glb',      axis: 'x', head: -1 },
-  scan_loach:       { file: 'scan_loach.glb',          axis: 'x', head: -1, roll: 1 },
-  scan_bluegill:    { file: 'scan_bluegill.glb',       axis: 'x', head: -1, roll: 1 },
-  scan_bass:        { file: 'scan_bass.glb',           axis: 'x', head: -1 },
-  scan_ayu:         { file: 'scan_ayu.glb',            axis: 'x', head: -1 },
-  // 黄鳝、黄颡：文件里头朝 -X，背面已经朝上。
-  scan_eel:         { file: 'scan_eel.glb',            axis: 'x', head: -1 },
-  scan_yellowcat:   { file: 'scan_yellowcat.glb',      axis: 'x', head: -1 },
+  ...SCAN_MODELS,
 };
 
 // 物种 → 模型 + 色调(乘色) + 体高/体宽缩放。未列出的物种（甲鱼）走程序化网格。
-const SPECIES_MAP = {
+export const SPECIES_MAP = {
   koi:        { m: 'koi' },
   carp:       { m: 'scan_carp' },
   goldcarp:   { m: 'scan_carp', tint: [1.18, 1.02, 0.62], glow: 0.06 },
@@ -61,16 +50,21 @@ const SPECIES_MAP = {
   gancyu:     { m: 'barramundi', tint: [0.95, 0.9, 0.75], h: 0.8 },
   perch:      { m: 'barramundi' },
   mandarin:   { m: 'scan_bass' },
-  catfish:    { m: 'scan_amur' },
+  catfish:    { m: 'scan_catfish' },
   yellowcat:  { m: 'scan_yellowcat' },
   sturgeon:   { m: 'catfish', tint: [0.68, 0.7, 0.74], h: 0.75, w: 0.85 },
   loach:      { m: 'scan_loach' },
   eel:        { m: 'scan_eel' },
+  ...SCAN_SPECIES_MAP,
 };
 
 /** @type {Record<string, { parts: { geometry: THREE.BufferGeometry, material: THREE.Material }[] }>} */
 const assets = {};
-let preloadPromise = null;
+const loader = new GLTFLoader();
+const inflight = new Map();
+const queue = [];
+let activeLoads = 0;
+const MAX_LOADS = 3;
 
 // 摄影测量贴图已经烘焙了光照。游戏曝光大约 0.5，这里把反照率抬一档，避免扫描鱼比 PBR 鱼暗一截。
 const SCAN_GAIN = 1.75;
@@ -96,23 +90,31 @@ function fishMeshes(scene) {
   return kept.length ? kept : meshes;
 }
 
+function manualRot(cfg) {
+  const rot = new THREE.Matrix4();
+  if (cfg.axis === 'z') rot.makeRotationY(cfg.head > 0 ? Math.PI / 2 : -Math.PI / 2);
+  else if (cfg.axis === 'y') rot.makeRotationZ(cfg.head > 0 ? Math.PI / 2 : -Math.PI / 2);
+  else if (cfg.head < 0) rot.makeRotationY(Math.PI);
+  if (cfg.roll) rot.premultiply(new THREE.Matrix4().makeRotationX(Math.PI));
+  return rot;
+}
+
 /** 把 glTF 里每一块鱼网格烘焙到同一套坐标（头朝 +X、体长 = 1）。多材质不合并，避免鳍和眼睛吃到身体贴图。 */
 function bake(scene, cfg) {
   scene.updateMatrixWorld(true);
   const meshes = fishMeshes(scene);
   if (!meshes.length) return null;
-  const rot = new THREE.Matrix4();
-  if (cfg.axis === 'z') rot.makeRotationY(cfg.head > 0 ? Math.PI / 2 : -Math.PI / 2);
-  else if (cfg.head < 0) rot.makeRotationY(Math.PI);
-  if (cfg.roll) rot.premultiply(new THREE.Matrix4().makeRotationX(Math.PI));
   const geos = meshes.map((mesh) => {
     const g = toFloat(mesh.geometry.clone());
     poseSkinned(mesh, g);
     g.applyMatrix4(mesh.matrixWorld);
-    g.applyMatrix4(rot);
-    g.computeBoundingBox();
     return g;
   });
+  const rot = manualRot(cfg);
+  for (const g of geos) {
+    g.applyMatrix4(rot);
+    g.computeBoundingBox();
+  }
   const box = new THREE.Box3();
   for (const g of geos) box.union(g.boundingBox);
   const c = box.getCenter(new THREE.Vector3());
@@ -144,30 +146,99 @@ function poseSkinned(mesh, geometry) {
   geometry.deleteAttribute('skinWeight');
 }
 
-function loadOne(loader, key, cfg) {
-  return new Promise((resolve) => {
-    loader.load(BASE + cfg.file, (gltf) => {
-      const b = bake(gltf.scene, cfg);
-      if (b) assets[key] = b;
-      resolve(!!b);
+function pump() {
+  while (activeLoads < MAX_LOADS && queue.length) {
+    queue.sort((a, b) => b.priority - a.priority);
+    const job = queue.shift();
+    activeLoads++;
+    loader.load(BASE + job.cfg.file, (gltf) => {
+      const baked = bake(gltf.scene, job.cfg);
+      if (baked) assets[job.key] = baked;
+      finish(job, !!baked);
     }, undefined, (err) => {
-      console.warn('[fish] GLB 加载失败，该外形回退程序化网格', cfg.file, err);
-      resolve(false);
+      console.warn('[fish] GLB 加载失败，该外形回退程序化网格', job.cfg.file, err);
+      finish(job, false);
     });
-  });
+  }
+}
+
+function finish(job, ok) {
+  inflight.delete(job.key);
+  activeLoads--;
+  job.resolve(ok);
+  pump();
+}
+
+function requestLoad(key, priority) {
+  if (assets[key]) return Promise.resolve(true);
+  const cfg = MODELS[key];
+  if (!cfg) return Promise.resolve(false);
+  const existing = inflight.get(key);
+  if (existing) {
+    existing.priority = Math.max(existing.priority, priority);
+    return existing.promise;
+  }
+  let resolve;
+  const promise = new Promise((res) => { resolve = res; });
+  const job = { key, cfg, priority, resolve, promise };
+  inflight.set(key, job);
+  queue.push(job);
+  pump();
+  return promise;
+}
+
+/** 当前钓场实际可能钓到的模型。封闭钓场只含权重大于 0 的鱼；新扫模还要 places 对得上。 */
+export function modelKeysForLocation(locId) {
+  const loc = locationById[locId];
+  if (!loc) return [];
+  const keys = new Set();
+  for (const [id, spec] of Object.entries(SPECIES_MAP)) {
+    const places = SPECIES_PLACES[id];
+    const w = loc.weights[id];
+    let spawn = false;
+    if (places) spawn = places.includes(locId) && !(w <= 0);
+    else if (loc.closed) spawn = w > 0;
+    else spawn = w == null || w > 0;
+    if (spawn && MODELS[spec.m]) keys.add(spec.m);
+  }
+  return [...keys];
+}
+
+function enqueueLocation(locId, priority) {
+  return Promise.all(modelKeysForLocation(locId).map((key) => requestLoad(key, priority)));
+}
+
+let focusLoc = null;
+
+/** 只下载这个钓场用得到的 GLB。邻场模型少的时候，下完再低优先级预热下一站。 */
+export function preloadForLocation(locId, { warm = true } = {}) {
+  focusLoc = locId;
+  for (const job of queue) if (job.priority < 10) job.priority = -1;
+  const done = enqueueLocation(locId, 1);
+  if (warm) {
+    const next = locationById[locId]?.nextId;
+    if (next) {
+      done.then(() => {
+        if (focusLoc !== locId) return;
+        const n = modelKeysForLocation(next).length;
+        if (n > 0 && n <= 28) enqueueLocation(next, -1);
+      });
+    }
+  }
+  return done.then(() => Object.keys(assets));
+}
+
+/** 这条鱼的模型插到队列前面。咬钩到上岸之间通常够下完一件。 */
+export function preloadSpeciesModel(sp) {
+  if (!sp) return Promise.resolve(false);
+  const spec = SPECIES_MAP[sp.id];
+  if (!spec || !MODELS[spec.m]) return Promise.resolve(false);
+  return requestLoad(spec.m, 10);
 }
 
 // 名称保留以兼容 main.js
-export function preloadQuaterniusFish() {
-  if (preloadPromise) return preloadPromise;
-  const loader = new GLTFLoader();
-  const used = new Set(Object.values(SPECIES_MAP).map((spec) => spec.m));
-  preloadPromise = Promise.all(
-    Object.entries(MODELS)
-      .filter(([key]) => used.has(key))
-      .map(([key, cfg]) => loadOne(loader, key, cfg)),
-  ).then(() => Object.keys(assets));
-  return preloadPromise;
+export function preloadQuaterniusFish(locId = 'lake') {
+  return preloadForLocation(locId);
 }
 
 export function quaterniusReady() {

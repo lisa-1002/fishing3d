@@ -4,7 +4,13 @@
 
 作者：**刘子峻**。原创代码与程序化美术见根目录 `LICENSE`；第三方素材见 `CREDITS.md`。
 
-当前鱼模型由 `js/fish-gltf.js` 加载 `vendor/fish/real/` 的写实 CC0 GLB（见 `ART.md`）。鲤、黄金鲤、鲫、鲶、黄颡、黑鱼、马口、翘嘴、泥鳅、罗非、鳜鱼、黄鳝用 ffish.asia 的实鱼扫描；锦鲤王和其余大多鱼种仍是 Polyy / Khronos 低模。香鱼扫描在目录里但图鉴没有对应物种，不加载。`vendor/fish/Koi.glb`、`Goldfish.glb`、`ArmoredCatfish.glb` 是 Quaternius 历史文件，默认不加载。
+当前鱼模型由 `js/fish-gltf.js` 按钓场懒加载 `vendor/fish/real/` 的写实 CC0 GLB（见 `ART.md`）。湖湾开局只下载这一站会钓到的模型。ffish.asia 扫描按 `js/scan-catalog.js` 挂到物种上；草鱼、青鱼、鲢、鳙仍用原来的低模。`vendor/fish/Koi.glb`、`Goldfish.glb`、`ArmoredCatfish.glb` 是 Quaternius 历史文件，默认不加载。
+
+## 2026-10-26 近海三钓场与扫模懒加载
+- 钥匙链在大坝之后继续：近海码头 `coast` → 热带礁盘 `reef` → 外海拖钓 `offshore`。传说鱼掉下一站钥匙，交给黑衣人开船。
+- 三个新钓场各自有天空、水色和岸边道具（防波堤与浮标、珊瑚与棕榈、远岛剪影）。已有的湖湾到大坝不改芦苇数量。
+- 152 个 ffish.asia CC0 扫模都有物种或沿用原物种。进哪个钓场才下哪一批 GLB，咬钩的那条会插到下载队列前面。
+- 存档 **v7**：只把版本号拨到 7，不收回已解锁的钓点、钥匙或金币。主线「钥匙旅人」改为踏足全部 8 个钓点。
 
 ## 2026-10-25 实鱼扫描
 - 新增十件 Sketchfab CC0 扫描（ffish.asia，无 Draco）。鲤 / 黄金鲤、鲫、鲶 / 黄颡、黑鱼、马口、翘嘴（ハス）、泥鳅、罗非（蓝鳃太阳鱼）、鳜鱼（大口黑鲈）改用扫描。

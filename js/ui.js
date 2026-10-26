@@ -1,7 +1,7 @@
 // 界面：HUD、鱼护、商店、任务、装备、图鉴
-import { SPECIES, RARITY, speciesById, catchLevel } from './fish.js?v=14';
-import { RODS, LINES, NETS, BAITS, LURES, MAIN_QUESTS } from './data.js?v=14';
-import { LOCATIONS, mapStatus } from './locations.js';
+import { SPECIES, RARITY, speciesById, catchLevel } from './fish.js?v=15';
+import { RODS, LINES, NETS, BAITS, LURES, MAIN_QUESTS } from './data.js?v=15';
+import { LOCATIONS, LOCATION_ORDER } from './locations.js?v=15';
 
 const $ = id => document.getElementById(id);
 const fmtW = w => (w >= 10 ? w.toFixed(1) : w.toFixed(2)) + 'kg';
@@ -229,7 +229,7 @@ export function createUI(save, S, ctx) {
     const keyLine = keys.length
       ? `持有钥匙：${keyNames.join('、')} · 交给码头${keeper}`
       : (S.allMaps()
-        ? '五处都走过了。再钓一条传说鱼，把虹桥钥匙交给黄衣人'
+        ? `${LOCATION_ORDER.length}处都走过了。再钓一条传说鱼，把虹桥钥匙交给黄衣人`
         : '当前钓点钓到「传说」→ 钥匙 → 交给黑衣人开船');
     pBody.innerHTML = `<div class="sec">抛竿途中无法切换 · ${keyLine}</div><div class="mapGrid">` + LOCATIONS.map(loc => {
       const st = S.mapStatus(loc);

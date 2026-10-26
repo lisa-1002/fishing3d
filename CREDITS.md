@@ -64,11 +64,13 @@
 
 作者：ffish.asia / floraZia.com（Sketchfab [`ffishAsia-and-floraZia`](https://sketchfab.com/ffishAsia-and-floraZia)）。许可 CC0 1.0。实鱼摄影测量，无 Draco。逐文件俗名与模型页见 `vendor/fish/real/CREDITS.md`。
 
+全量 152 个扫模的俗名、钓场和文件名见 `vendor/fish/real/CREDITS.md` 的「全量扫描索引」。游戏按钓场下载，不在湖湾开局拉海鱼。
+
 | 文件 | 游戏中的鱼 | 扫描俗名 |
 |---|---|---|
 | `scan_carp.glb` | 鲤鱼、黄金鲤 | コイ Carp, Cyprinus carpio |
 | `scan_crucian.glb` | 鲫鱼 | ゲンゴロウブナ Japanese White Crucian Carp |
-| `scan_amur_catfish.glb` | 鲶鱼 | ナマズ Amur Catfish, Silurus asotus |
+| `scan_catfish.glb` | 鲶鱼 | ナマズ Amur Catfish, Silurus asotus |
 | `scan_yellowcat.glb` | 黄颡鱼 | ギギ Gigi Stream Catfish, T. nudiceps |
 | `scan_eel.glb` | 黄鳝 | ニホンウナギ Japanese Eel, Anguilla japonica |
 | `scan_snakehead.glb` | 黑鱼 | カムルチー Spotted Snakehead, Channa argus |
@@ -77,7 +79,7 @@
 | `scan_loach.glb` | 泥鳅 | ドジョウ Japanese Common Loach |
 | `scan_bluegill.glb` | 罗非鱼（图鉴无太阳鱼） | ブルーギル Bluegill, Lepomis macrochirus |
 | `scan_bass.glb` | 鳜鱼 | オオクチバス Micropterus sp. |
-| `scan_ayu.glb` | 不加载（图鉴无香鱼） | アユ Ayu Sweetfish |
+| `scan_ayu.glb` | 香鱼 | アユ Ayu Sweetfish |
 
 ## 历史鱼模型（默认不加载）
 
