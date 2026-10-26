@@ -4,7 +4,7 @@ import { Water } from '../vendor/addons/Water.js';
 import { Sky } from '../vendor/addons/Sky.js';
 import { mergeGeometries } from '../vendor/addons/BufferGeometryUtils.js';
 import { fbm, vnoise, smooth, rand } from './util.js';
-import { buildLaoYu } from './npc-laoyu.js?v=14';
+import { buildLaoYu } from './npc-laoyu.js?v=15';
 
 export const LAKE_CENTER = new THREE.Vector2(0, -320);
 export const DECK_Y = 0.9;
@@ -575,6 +575,8 @@ export function createWorld(scene, renderer, Q) {
     }
     reeds.count = n; reeds.instanceMatrix.needsUpdate = true; reeds.instanceColor.needsUpdate = true;
     scene.add(reeds);
+    world.reeds = reeds;
+    world._reedFull = n;
   }
 
   // ---------- 木码头 ----------
@@ -804,6 +806,82 @@ export function createWorld(scene, renderer, Q) {
     scene.add(boat); world.boat = boat;
   }
 
+  // 近海 / 礁盘 / 外海的岸边道具。湖湾到大坝不打开，避免改掉原来的岸。
+  {
+    const coast = new THREE.Group();
+    coast.name = 'dress-coast';
+    const concrete = new THREE.MeshStandardMaterial({ color: 0x8d9294, roughness: 0.92 });
+    for (let i = 0; i < 9; i++) {
+      const block = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.2, 2.4), concrete);
+      block.position.set(-16 - (i % 2) * 0.4, 0.15, -14 - i * 4.2);
+      block.rotation.y = (i % 2) * 0.08;
+      block.castShadow = block.receiveShadow = true;
+      coast.add(block);
+    }
+    const buoys = [];
+    const buoyOrange = new THREE.MeshStandardMaterial({ color: 0xe25a1c, roughness: 0.45 });
+    const buoyWhite = new THREE.MeshStandardMaterial({ color: 0xf4f4f4, roughness: 0.4 });
+    [[7, -22], [-6, -36], [10, -52], [-9, -68]].forEach(([x, z], i) => {
+      const g = new THREE.Group();
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.45, 16, 12), i % 2 ? buoyOrange : buoyWhite);
+      ball.scale.y = 0.85;
+      const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.06, 8, 16), i % 2 ? buoyWhite : buoyOrange);
+      stripe.rotation.x = Math.PI / 2;
+      g.add(ball, stripe);
+      g.position.set(x, 0.35, z);
+      coast.add(g);
+      buoys.push({ mesh: g, base: 0.35, phase: i * 1.3 });
+    });
+    coast.visible = false;
+    scene.add(coast);
+
+    const reef = new THREE.Group();
+    reef.name = 'dress-reef';
+    const coralMat = [0xff6b6b, 0xff9f43, 0xff6ad5, 0x7bed9f, 0xffd93d].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.72 }));
+    [[-12, -18], [14, -24], [-15, -36], [12, -44], [-8, -58], [16, -62]].forEach(([x, z], i) => {
+      const clump = new THREE.Group();
+      for (let k = 0; k < 4; k++) {
+        const geo = k % 2 ? new THREE.ConeGeometry(0.35 + k * 0.05, 1.1 + k * 0.15, 7) : new THREE.SphereGeometry(0.38, 10, 8);
+        const mesh = new THREE.Mesh(geo, coralMat[(i + k) % coralMat.length]);
+        mesh.position.set((k - 1.5) * 0.45, 0.35 + k * 0.08, (k % 2) * 0.3);
+        clump.add(mesh);
+      }
+      clump.position.set(x, -0.05, z);
+      clump.rotation.y = i;
+      reef.add(clump);
+    });
+    const trunk = new THREE.MeshStandardMaterial({ color: 0x6b4a2e, roughness: 0.9 });
+    const leaf = new THREE.MeshStandardMaterial({ color: 0x1f8a45, roughness: 0.7 });
+    [[18, 14], [24, 22], [-20, 16]].forEach(([x, z], i) => {
+      const palm = new THREE.Group();
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 4.2, 7), trunk);
+      stem.position.y = 2.1;
+      const crown = new THREE.Mesh(new THREE.SphereGeometry(1.15, 10, 8), leaf);
+      crown.scale.set(1.4, 0.55, 1.4);
+      crown.position.y = 4.3;
+      palm.add(stem, crown);
+      palm.position.set(x, Math.max(0.4, heightAt(x, z)) - 0.2, z);
+      palm.rotation.z = (i - 1) * 0.08;
+      reef.add(palm);
+    });
+    reef.visible = false;
+    scene.add(reef);
+
+    const offshore = new THREE.Group();
+    offshore.name = 'dress-offshore';
+    const isleMat = new THREE.MeshStandardMaterial({ color: 0x24303a, roughness: 1 });
+    [[420, -780, 90], [-520, -1100, 140], [180, -1500, 70]].forEach(([x, z, sc]) => {
+      const isle = new THREE.Mesh(new THREE.ConeGeometry(1, 1.4, 6), isleMat);
+      isle.scale.set(sc, sc * 0.55, sc);
+      isle.position.set(x, sc * 0.12, z);
+      offshore.add(isle);
+    });
+    offshore.visible = false;
+    scene.add(offshore);
+    world._buoys = buoys;
+    world._dress = { coast, reef, offshore };
+  }
+
   // ---------- 云 ----------
   {
     const tex = makeCloudTexture();
@@ -832,7 +910,7 @@ export function createWorld(scene, renderer, Q) {
     }
     world.sun.position.copy(sunDir).multiplyScalar(80).add(new THREE.Vector3(0, 0, 10));
     world.sun.color.setHex(theme.sunColor);
-    world.sun.intensity = theme.night ? 0.15 : 2.55;
+    world.sun.intensity = theme.night ? 0.15 : (theme.sunIntensity || 2.55);
     world.hemi.color.setHex(theme.hemiSky);
     world.hemi.groundColor.setHex(theme.hemiGround);
     world.hemi.intensity = theme.night ? 0.15 : 0.38;
@@ -847,6 +925,24 @@ export function createWorld(scene, renderer, Q) {
       world.water.material.uniforms.waterColor.value.setHex(theme.water);
       world.water.material.uniforms.sunColor.value.setHex(theme.sunColor);
       world.water.material.uniforms.sunDirection.value.copy(sunDir);
+      if (world.water.material.uniforms.distortionScale) {
+        world.water.material.uniforms.distortionScale.value = theme.wave || 2.2;
+      }
+    }
+    if (world.reeds) {
+      const full = world._reedFull || world.reeds.count;
+      if (theme.dress) {
+        const n = Math.max(0, Math.min(full, Math.round(full * (theme.reedBoost == null ? 1 : theme.reedBoost))));
+        world.reeds.count = n;
+        world.reeds.visible = n > 0;
+      } else {
+        world.reeds.count = full;
+        world.reeds.visible = true;
+      }
+    }
+    if (world._dress) {
+      const dress = theme.dress || '';
+      for (const [k, g] of Object.entries(world._dress)) g.visible = k === dress;
     }
     if (renderer && theme.exposure != null) renderer.toneMappingExposure = theme.exposure;
     // 地形色调
@@ -906,6 +1002,12 @@ export function createWorld(scene, renderer, Q) {
       }
     }
     if (world.boat) { world.boat.rotation.z = Math.sin(t * 0.8) * 0.03; world.boat.position.y = 0.12 + Math.sin(t * 1.1) * 0.04; }
+    if (world._buoys && world._dress && world._dress.coast.visible) {
+      for (const b of world._buoys) {
+        b.mesh.position.y = b.base + Math.sin(t * 1.3 + b.phase) * 0.12;
+        b.mesh.rotation.z = Math.sin(t * 0.9 + b.phase) * 0.12;
+      }
+    }
     // 远距树广告牌朝向相机（限频）
     _billAcc += dt;
     if (_billAcc > 0.4 && world.treeBills && camera && world.treeBills.count > 0) {

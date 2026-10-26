@@ -1,7 +1,7 @@
 // 存档：版本号 + 迁移，保证旧存档不丢失
 const KEY = 'fishing3d_save';
 const OLD_KEYS = ['fishing3d_save_v1'];
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 export function defaultSave() {
   return {
@@ -68,6 +68,8 @@ function migrate(s) {
   if (typeof s.rainbow !== 'boolean') s.rainbow = false;
   if (typeof s.cleared !== 'boolean') s.cleared = false;
   if ((s.version || 0) < 6) s.version = 6;
+  // v7：钓点链延长到近海码头、热带礁盘、外海。已解锁的湖湾到大坝、钥匙和金币都保留。
+  if ((s.version || 0) < 7) s.version = 7;
   for (const k of Object.keys(d)) if (s[k] === undefined) s[k] = d[k];
   for (const k of ['owned', 'equip', 'stats', 'unlockedLocations', 'keys', 'pity', 'legendAt']) s[k] = Object.assign({}, d[k], s[k]);
   s.unlockedLocations.lake = true;

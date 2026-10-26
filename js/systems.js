@@ -1,8 +1,8 @@
 // 游戏系统：经济（出售/商店）、经验等级、任务、选鱼
-import { SPECIES, RARITY, speciesById } from './fish.js?v=14';
-import { RODS, LINES, NETS, BAITS, LURES, RARITY_BASE, LEVEL_XP, MAX_LEVEL, LAOYU_XP, LAOYU_MAX, DAILY_TEMPLATES, MAIN_QUESTS, PITY, pullTalentBonus, pullTalentLabel } from './data.js?v=14';
-import { writeSave } from './save.js?v=14';
-import { LOCATIONS, LOCATION_ORDER, locationById, nextKeyIdFrom, mapStatus } from './locations.js';
+import { SPECIES, RARITY, speciesById } from './fish.js?v=15';
+import { RODS, LINES, NETS, BAITS, LURES, RARITY_BASE, LEVEL_XP, MAX_LEVEL, LAOYU_XP, LAOYU_MAX, DAILY_TEMPLATES, MAIN_QUESTS, PITY, pullTalentBonus, pullTalentLabel } from './data.js?v=15';
+import { writeSave } from './save.js?v=15';
+import { LOCATIONS, LOCATION_ORDER, locationById, nextKeyIdFrom, mapStatus } from './locations.js?v=15';
 
 export function createSystems(save, hooks = {}) {
   const S = {};
@@ -239,7 +239,18 @@ export function createSystems(save, hooks = {}) {
     const mod = mode === 'lure' ? S.lure() : S.bait();
     const loc = S.location();
     const rarMul = { common: 1.15 - power * 0.45, rare: 1 + power * 0.3, epic: 1 + power * 0.9, legend: 1 + power * 1.6 };
-    const pool = SPECIES.filter(s => (s.method === mode || s.method === 'both') && (loc.weights[s.id] === undefined || loc.weights[s.id] > 0));
+    const pool = SPECIES.filter(s => {
+      if (s.method !== mode && s.method !== 'both') return false;
+      const w = loc.weights[s.id];
+      if (s.places) return s.places.includes(loc.id) && !(w <= 0);
+      if (loc.closed) return w > 0;
+      return w == null || w > 0;
+    });
+    if (!pool.length) {
+      const fb = SPECIES.find(s => loc.weights[s.id] > 0 && (s.method === mode || s.method === 'both')) || SPECIES[0];
+      const wf = Math.pow(Math.random(), 2.2);
+      return { sp: fb, weight: fb.w[0] + (fb.w[1] - fb.w[0]) * wf, wf, pity: false };
+    }
     const counts = {}; pool.forEach(s => counts[s.rarity] = (counts[s.rarity] || 0) + 1);
     const weights = pool.map(s => {
       const lw = loc.weights[s.id] !== undefined ? loc.weights[s.id] : 0.35; // 未点名的鱼少量出现
@@ -254,7 +265,8 @@ export function createSystems(save, hooks = {}) {
       pL = S.pityChance(legW / total);
       wantLegend = Math.random() < pL;
     }
-    const idx = pool.map((_, i) => i).filter(i => wantLegend === null || (pool[i].rarity === 'legend') === wantLegend);
+    let idx = pool.map((_, i) => i).filter(i => wantLegend === null || (pool[i].rarity === 'legend') === wantLegend);
+    if (!idx.length) idx = pool.map((_, i) => i);
     let r = Math.random() * idx.reduce((a, i) => a + weights[i], 0), sp = pool[idx[0]];
     for (const i of idx) { r -= weights[i]; if (r <= 0) { sp = pool[i]; break; } }
     // 保底强制触发的新手传说：偏向小个体，竹竿也有机会拉上来
