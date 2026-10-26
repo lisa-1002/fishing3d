@@ -4,7 +4,7 @@ import { Water } from '../vendor/addons/Water.js';
 import { Sky } from '../vendor/addons/Sky.js';
 import { mergeGeometries } from '../vendor/addons/BufferGeometryUtils.js';
 import { fbm, vnoise, smooth, rand } from './util.js';
-import { buildLaoYu } from './npc-laoyu.js?v=15';
+import { buildLaoYu } from './npc-laoyu.js?v=16';
 
 export const LAKE_CENTER = new THREE.Vector2(0, -320);
 export const DECK_Y = 0.9;
@@ -28,6 +28,67 @@ export function heightAt(x, z) {
   h += smooth(900, 1600, d) * (40 + 180 * Math.pow(ridge, 1.6));
   h += (fbm(x * 0.05, z * 0.05, 3) - 0.5) * 1.4 * smooth(-5, 30, e);
   return h;
+}
+
+/** 码头和岸边房子脚下的地面。换钓点时留着，避免人和屋子悬空。 */
+function onPierPad(x, z) {
+  return Math.abs(x) < 16 && z > -6 && z < 55;
+}
+
+/**
+ * 视觉地形高度。heightAt 仍给码头、交互和植被落点用，玩法坐标不变。
+ * 这里只改网格，让每个钓点的岸线剪影不一样。
+ */
+function landHeight(kind, x, z, y0) {
+  if (!kind || kind === 'lake') return y0;
+  if (onPierPad(x, z)) return y0;
+  const dockD = Math.hypot(x, z + 3);
+  const lakeD = Math.hypot(x - LAKE_CENTER.x, z - LAKE_CENTER.y);
+  if (kind === 'coast') {
+    // 港池：近岸削成一块几乎贴着水面的平地，远山压矮，防波堤才是剪影。
+    let y = y0;
+    if (y0 > -1.6) y = Math.min(y0, dockD < 180 ? 0.42 : 0.55 + Math.max(0, y0 - 0.55) * 0.08);
+    if (lakeD > 780) y = Math.min(y, 10 + (lakeD - 780) * 0.012);
+    return y;
+  }
+  if (kind === 'reef') {
+    const n = fbm(x * 0.016 + 2.2, z * 0.016 - 1.1, 3);
+    // 正前方留一条可抛竿的水道，两侧和中距离堆低沙丘、沙洲。
+    if (dockD < 16 && Math.abs(x) < 4.5) return Math.min(y0, -1.35);
+    if (y0 < -1.4) {
+      const bar = n > 0.62 ? (n - 0.62) * 7.2 : 0;
+      return Math.min(1.35, -0.55 + bar);
+    }
+    const dune = (n - 0.42) * 3.6;
+    return Math.max(-0.4, Math.min(2.6, 0.25 + dune));
+  }
+  if (kind === 'offshore') {
+    // 近处整片沉进水里，只剩道具岛。
+    if (lakeD > 1700) {
+      const n = fbm(x * 0.0035 + 4, z * 0.0035, 3);
+      return -2.2 + n * 3;
+    }
+    return -5.5;
+  }
+  if (kind === 'stream') {
+    if (lakeD > 880) return y0 * 1.18 + 4;
+    return y0;
+  }
+  if (kind === 'marsh') {
+    if (y0 > 0.35 && y0 < 48 && lakeD < 980) return 0.35 + (y0 - 0.35) * 0.42;
+    return y0;
+  }
+  if (kind === 'night') {
+    if (lakeD > 820) return y0 * 0.78;
+    if (y0 < 1.2) return y0 - 0.55;
+    return y0;
+  }
+  if (kind === 'dam') {
+    const near = 1 - smooth(180, 980, dockD);
+    if (y0 > 0.2 && lakeD < 1200) return y0 * (1 - 0.72 * near);
+    return y0;
+  }
+  return y0;
 }
 
 function hash2(x, y) {
@@ -333,6 +394,12 @@ export function createWorld(scene, renderer, Q) {
   water.rotation.x = -Math.PI / 2;
   water.position.set(LAKE_CENTER.x, 0, LAKE_CENTER.y);
   water.material.uniforms.size.value = 2.2;
+  // 主题可改反射占比：礁盘让水色透出来，外海压住天光，近海多留碎浪反光。
+  water.material.fragmentShader = water.material.fragmentShader
+    .replace('uniform vec3 waterColor;', 'uniform vec3 waterColor;\n\t\t\t\tuniform float reflectance;')
+    .replace('float rf0 = 0.3;', 'float rf0 = reflectance;');
+  water.material.uniforms.reflectance = { value: 0.3 };
+  water.material.needsUpdate = true;
   scene.add(water);
   world.water = water;
 
@@ -392,10 +459,16 @@ export function createWorld(scene, renderer, Q) {
     scene.add(terrain);
     world.terrain = terrain;
     world._terrainBaseColors = cols.slice();
+    const baseY = new Float32Array(pos.count);
+    for (let i = 0; i < pos.count; i++) baseY[i] = pos.getY(i);
+    world._terrainBaseY = baseY;
+    world._terrainMaps = { map: detail.map, bumpMap: detail.bumpMap, roughnessMap: detail.roughnessMap };
   }
 
   // ---------- 远山剪影（低模脊线，加强大气纵深） ----------
   {
+    const ridges = new THREE.Group();
+    ridges.name = 'ridges';
     const ridgeMat = new THREE.MeshStandardMaterial({
       color: 0x6a7888, roughness: 1, metalness: 0, flatShading: true,
       fog: true,
@@ -437,8 +510,12 @@ export function createWorld(scene, renderer, Q) {
       mesh.material.transparent = true;
       mesh.material.opacity = 0.85 - ring * 0.15;
       mesh.frustumCulled = false;
-      scene.add(mesh);
+      mesh.userData.baseColor = mesh.material.color.getHex();
+      mesh.userData.baseOpacity = mesh.material.opacity;
+      ridges.add(mesh);
     }
+    scene.add(ridges);
+    world.ridges = ridges;
   }
 
   // ---------- 树木（树皮 + 簇叶体 + 远距软边广告牌） ----------
@@ -518,6 +595,8 @@ export function createWorld(scene, renderer, Q) {
       scene.add(o);
     });
     world.treeBills = bills;
+    world._veg = [pines, leafs, trunks, bills];
+    for (const mesh of world._veg) mesh.userData.fullCount = mesh.count;
   }
 
   // ---------- 灌木（近岸 / 林下） ----------
@@ -550,7 +629,9 @@ export function createWorld(scene, renderer, Q) {
     shrubs.instanceMatrix.needsUpdate = true;
     shrubs.instanceColor.needsUpdate = true;
     shrubs.frustumCulled = false;
+    shrubs.userData.fullCount = shrubs.count;
     scene.add(shrubs);
+    world._veg.push(shrubs);
   }
 
   // ---------- 芦苇 ----------
@@ -577,6 +658,31 @@ export function createWorld(scene, renderer, Q) {
     scene.add(reeds);
     world.reeds = reeds;
     world._reedFull = n;
+
+    // 湿地再铺一层，平时关掉。芦苇总数在生成时已经顶满，单靠 reedBoost 变不密。
+    const extra = new THREE.InstancedMesh(blade, new THREE.MeshStandardMaterial({ color: 0x6f7a38, roughness: 0.85 }), Math.max(200, Math.floor(Q.reeds * 0.85)));
+    let en = 0, et = 0;
+    while (en < extra.count && et++ < 40000) {
+      const cx = rand(-190, 190), cz = rand(-55, 55);
+      if (Math.abs(cx) < 5) continue;
+      const y = heightAt(cx, cz);
+      if (y < -1.15 || y > 1.35) continue;
+      const k = (10 + Math.random() * 18) | 0;
+      for (let j = 0; j < k && en < extra.count; j++) {
+        const x = cx + rand(-1.8, 1.8), z = cz + rand(-1.8, 1.8);
+        e.set(rand(-0.3, 0.3), 0, rand(-0.3, 0.3)); q.setFromEuler(e);
+        const h = rand(0.9, 2.1); s.set(1.15, h, 1.15); p.set(x, heightAt(x, z) - 0.05, z);
+        m.compose(p, q, s); extra.setMatrixAt(en, m);
+        extra.setColorAt(en++, new THREE.Color().setHSL(0.18 + rand(-0.04, 0.05), 0.42, rand(0.22, 0.4)));
+      }
+    }
+    extra.count = en;
+    extra.instanceMatrix.needsUpdate = true;
+    extra.instanceColor.needsUpdate = true;
+    extra.visible = false;
+    extra.frustumCulled = false;
+    scene.add(extra);
+    world.reedsExtra = extra;
   }
 
   // ---------- 木码头 ----------
@@ -616,12 +722,16 @@ export function createWorld(scene, renderer, Q) {
     }
     const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.17, 0.38, 20, 1, true),
       new THREE.MeshStandardMaterial({ map: wood, color: 0x8a7a66, roughness: 0.9, side: THREE.DoubleSide }));
-    bucket.position.set(0.85, DECK_Y + 0.19, endZ + 2.6); bucket.castShadow = true; dock.add(bucket);
+    const lakeProps = new THREE.Group();
+    lakeProps.name = 'lake-props';
+    bucket.position.set(0.85, DECK_Y + 0.19, endZ + 2.6); bucket.castShadow = true; lakeProps.add(bucket);
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.012, 6, 24), new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.8, roughness: 0.4 }));
-    band.rotation.x = Math.PI / 2; band.position.copy(bucket.position).add(new THREE.Vector3(0, 0.1, 0)); dock.add(band);
+    band.rotation.x = Math.PI / 2; band.position.copy(bucket.position).add(new THREE.Vector3(0, 0.1, 0)); lakeProps.add(band);
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.26, 0.3), new THREE.MeshStandardMaterial({ color: 0x2f5a3a, roughness: 0.5, metalness: 0.1 }));
-    box.position.set(-0.85, DECK_Y + 0.13, endZ + 3.4); box.rotation.y = 0.3; box.castShadow = true; dock.add(box);
+    box.position.set(-0.85, DECK_Y + 0.13, endZ + 3.4); box.rotation.y = 0.3; box.castShadow = true; lakeProps.add(box);
+    dock.add(lakeProps);
     scene.add(dock);
+    world.lakeProps = lakeProps;
   }
 
   // ---------- 岸边小屋（商店）+ 渔夫（出售）----------
@@ -806,92 +916,205 @@ export function createWorld(scene, renderer, Q) {
     scene.add(boat); world.boat = boat;
   }
 
-  // 近海 / 礁盘 / 外海的岸边道具。湖湾到大坝不打开，避免改掉原来的岸。
+  // 钓点布置。尺寸按抛竿机位（约 x=0,z=-3，朝 -Z）摆进画面，不靠新的场景 GLB。
   {
     const coast = new THREE.Group();
     coast.name = 'dress-coast';
-    const concrete = new THREE.MeshStandardMaterial({ color: 0x8d9294, roughness: 0.92 });
-    for (let i = 0; i < 9; i++) {
-      const block = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.2, 2.4), concrete);
-      block.position.set(-16 - (i % 2) * 0.4, 0.15, -14 - i * 4.2);
-      block.rotation.y = (i % 2) * 0.08;
-      block.castShadow = block.receiveShadow = true;
-      coast.add(block);
-    }
+    const concrete = new THREE.MeshStandardMaterial({ color: 0xb7c0c6, roughness: 0.9 });
+    const concreteDark = new THREE.MeshStandardMaterial({ color: 0x6d767c, roughness: 0.94 });
+    const concreteWet = new THREE.MeshStandardMaterial({ color: 0x4e5c64, roughness: 0.62 });
+    const addBox = (parent, w, h, d, x, y, z, mat) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      mesh.position.set(x, y, z);
+      mesh.castShadow = mesh.receiveShadow = true;
+      parent.add(mesh);
+      return mesh;
+    };
+    // 两侧沉箱防波堤，夹出一条港池。近端收进画面，避免整排贴在镜头外面。
+    const layCaissons = (x0, z0, x1, z1, pieces, h0) => {
+      for (let i = 0; i < pieces; i++) {
+        const t = pieces === 1 ? 0 : i / (pieces - 1);
+        const x = x0 + (x1 - x0) * t;
+        const z = z0 + (z1 - z0) * t;
+        const h = h0 + (i % 3) * 0.55;
+        addBox(coast, 6.6, h, 6.4, x, h * 0.5 - 0.85, z, i % 2 ? concrete : concreteDark);
+        addBox(coast, 6.9, 0.45, 6.7, x, h - 0.95, z, concrete);
+        addBox(coast, 6.8, 0.85, 6.6, x, 0.2, z, concreteWet);
+      }
+    };
+    layCaissons(-4.8, -9, -13.5, -64, 8, 5.4);
+    layCaissons(5.6, -10, 14.5, -58, 7, 4.8);
     const buoys = [];
-    const buoyOrange = new THREE.MeshStandardMaterial({ color: 0xe25a1c, roughness: 0.45 });
-    const buoyWhite = new THREE.MeshStandardMaterial({ color: 0xf4f4f4, roughness: 0.4 });
-    [[7, -22], [-6, -36], [10, -52], [-9, -68]].forEach(([x, z], i) => {
+    const buoyOrange = new THREE.MeshStandardMaterial({ color: 0xe25a1c, roughness: 0.4 });
+    const buoyWhite = new THREE.MeshStandardMaterial({ color: 0xf4f4f4, roughness: 0.35 });
+    [[0.4, -16], [-1.2, -28], [1.6, -42], [-0.6, -56]].forEach(([x, z], i) => {
       const g = new THREE.Group();
-      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.45, 16, 12), i % 2 ? buoyOrange : buoyWhite);
-      ball.scale.y = 0.85;
-      const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.06, 8, 16), i % 2 ? buoyWhite : buoyOrange);
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.95, 18, 14), i % 2 ? buoyOrange : buoyWhite);
+      ball.scale.y = 0.82;
+      const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.98, 0.12, 8, 18), i % 2 ? buoyWhite : buoyOrange);
       stripe.rotation.x = Math.PI / 2;
       g.add(ball, stripe);
-      g.position.set(x, 0.35, z);
+      g.position.set(x, 0.7, z);
       coast.add(g);
-      buoys.push({ mesh: g, base: 0.35, phase: i * 1.3 });
+      buoys.push({ mesh: g, base: 0.7, phase: i * 1.3 });
+    });
+    const beacon = (x, z, color) => {
+      const g = new THREE.Group();
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.28, 9.2, 8), concreteDark);
+      pole.position.y = 4.5;
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.55, 8), buoyWhite);
+      band.position.y = 7.6;
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.48, 14, 12), new THREE.MeshStandardMaterial({
+        color, emissive: color, emissiveIntensity: 1.6, roughness: 0.3,
+      }));
+      lamp.position.y = 9.15;
+      pole.castShadow = band.castShadow = lamp.castShadow = true;
+      g.add(pole, band, lamp);
+      g.position.set(x, 0, z);
+      coast.add(g);
+    };
+    beacon(-4.4, -13, 0xff2430);
+    beacon(5.3, -14.5, 0x2ee06a);
+    // 堤脚消波块，离抛点近，第一眼就能看见。
+    [[-2.2, -18], [3.1, -22], [-3.4, -34], [2.4, -40]].forEach(([x, z], i) => {
+      const g = new THREE.Group();
+      for (let k = 0; k < 3; k++) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.85, 2.6, 0.85), k === 1 ? concrete : concreteDark);
+        leg.rotation.set(0.4, i + k, (k - 1) * 0.85);
+        leg.castShadow = true;
+        g.add(leg);
+      }
+      g.position.set(x, 0.7, z);
+      coast.add(g);
     });
     coast.visible = false;
     scene.add(coast);
 
     const reef = new THREE.Group();
     reef.name = 'dress-reef';
-    const coralMat = [0xff6b6b, 0xff9f43, 0xff6ad5, 0x7bed9f, 0xffd93d].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.72 }));
-    [[-12, -18], [14, -24], [-15, -36], [12, -44], [-8, -58], [16, -62]].forEach(([x, z], i) => {
+    const coralMat = [0xff5d73, 0xff8a2a, 0xff4fd8, 0x3ddea0, 0xffd23a, 0x7cf0ff].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.62 }));
+    const sandMat = new THREE.MeshStandardMaterial({ color: 0xf0d7a4, roughness: 0.95 });
+    const trunk = new THREE.MeshStandardMaterial({ color: 0x6b4428, roughness: 0.9 });
+    const leaf = new THREE.MeshStandardMaterial({ color: 0x1c9a48, roughness: 0.62 });
+    const addSand = (x, z, rx, rz) => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), sandMat);
+      m.scale.set(rx, 0.7, rz);
+      m.position.set(x, 0.05, z);
+      m.castShadow = m.receiveShadow = true;
+      reef.add(m);
+    };
+    [[-5.2, -18, 6.5, 4.6], [4.6, -27, 7.2, 5.2], [-2.2, -40, 8.4, 5.6], [6.2, -50, 6.2, 4.4], [0.4, -62, 9, 6]].forEach(([x, z, rx, rz]) => addSand(x, z, rx, rz));
+    const addCoral = (x, z, scale, seed) => {
       const clump = new THREE.Group();
-      for (let k = 0; k < 4; k++) {
-        const geo = k % 2 ? new THREE.ConeGeometry(0.35 + k * 0.05, 1.1 + k * 0.15, 7) : new THREE.SphereGeometry(0.38, 10, 8);
-        const mesh = new THREE.Mesh(geo, coralMat[(i + k) % coralMat.length]);
-        mesh.position.set((k - 1.5) * 0.45, 0.35 + k * 0.08, (k % 2) * 0.3);
+      for (let k = 0; k < 7; k++) {
+        const branch = (seed + k) % 2 === 0;
+        const geo = branch
+          ? new THREE.ConeGeometry((0.34 + (k % 3) * 0.1) * scale, (1.5 + (k % 4) * 0.38) * scale, 6)
+          : new THREE.SphereGeometry((0.5 + (k % 3) * 0.16) * scale, 10, 8);
+        const mesh = new THREE.Mesh(geo, coralMat[(seed + k) % coralMat.length]);
+        mesh.position.set((k - 3) * 0.62 * scale, 0.55 * scale + (k % 3) * 0.28 * scale, ((k % 3) - 1) * 0.45 * scale);
+        if (branch) mesh.rotation.z = ((k % 5) - 2) * 0.38;
+        mesh.castShadow = mesh.receiveShadow = true;
         clump.add(mesh);
       }
-      clump.position.set(x, -0.05, z);
-      clump.rotation.y = i;
+      clump.position.set(x, 0.35, z);
+      clump.rotation.y = seed * 0.7;
       reef.add(clump);
-    });
-    const trunk = new THREE.MeshStandardMaterial({ color: 0x6b4a2e, roughness: 0.9 });
-    const leaf = new THREE.MeshStandardMaterial({ color: 0x1f8a45, roughness: 0.7 });
-    [[18, 14], [24, 22], [-20, 16]].forEach(([x, z], i) => {
-      const palm = new THREE.Group();
-      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 4.2, 7), trunk);
-      stem.position.y = 2.1;
-      const crown = new THREE.Mesh(new THREE.SphereGeometry(1.15, 10, 8), leaf);
-      crown.scale.set(1.4, 0.55, 1.4);
-      crown.position.y = 4.3;
-      palm.add(stem, crown);
-      palm.position.set(x, Math.max(0.4, heightAt(x, z)) - 0.2, z);
-      palm.rotation.z = (i - 1) * 0.08;
-      reef.add(palm);
-    });
+    };
+    [[-4.2, -17, 1.35, 1], [3.6, -24, 1.55, 2], [0.2, -33, 1.7, 3], [-5.5, -39, 1.25, 4], [5.4, -46, 1.45, 5], [-1.4, -54, 1.6, 6], [2.8, -20, 1.15, 7]].forEach(([x, z, sc, seed]) => addCoral(x, z, sc, seed));
+    const addPalm = (x, z, scale, lean) => {
+      const g = new THREE.Group();
+      const h = 8.4 * scale;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * scale, 0.38 * scale, h, 7), trunk);
+      stem.position.y = h * 0.5;
+      stem.castShadow = true;
+      g.add(stem);
+      for (let k = 0; k < 8; k++) {
+        const geo = new THREE.ConeGeometry(0.2 * scale, 4.6 * scale, 4);
+        geo.translate(0, 2.05 * scale, 0);
+        const frond = new THREE.Mesh(geo, leaf);
+        frond.position.y = h * 0.92;
+        frond.rotation.order = 'YXZ';
+        frond.rotation.y = (k / 8) * Math.PI * 2;
+        frond.rotation.z = 1.08;
+        frond.castShadow = true;
+        g.add(frond);
+      }
+      g.position.set(x, 0.35, z);
+      g.rotation.z = lean;
+      reef.add(g);
+    };
+    [[-6.4, -14, 1.05, -0.12], [7.2, -16, 1.15, 0.14], [-7.6, -30, 0.95, -0.08], [8.4, -34, 1.2, 0.1], [-5.2, -48, 1.0, 0.06], [6.8, -56, 1.1, -0.1]].forEach(([x, z, sc, lean]) => addPalm(x, z, sc, lean));
     reef.visible = false;
     scene.add(reef);
 
     const offshore = new THREE.Group();
     offshore.name = 'dress-offshore';
-    const isleMat = new THREE.MeshStandardMaterial({ color: 0x24303a, roughness: 1 });
-    [[420, -780, 90], [-520, -1100, 140], [180, -1500, 70]].forEach(([x, z, sc]) => {
-      const isle = new THREE.Mesh(new THREE.ConeGeometry(1, 1.4, 6), isleMat);
-      isle.scale.set(sc, sc * 0.55, sc);
-      isle.position.set(x, sc * 0.12, z);
-      offshore.add(isle);
-    });
+    const isleMat = new THREE.MeshStandardMaterial({ color: 0x1c2832, roughness: 1, flatShading: true });
+    const isleFar = new THREE.MeshStandardMaterial({ color: 0x243644, roughness: 1, flatShading: true });
+    const surfMat = new THREE.MeshStandardMaterial({ color: 0xd5e4ee, roughness: 0.45, transparent: true, opacity: 0.82 });
+    const addIsland = (x, z, radius, height, mat) => {
+      const g = new THREE.Group();
+      const rock = new THREE.Mesh(new THREE.ConeGeometry(1, 1.25, 8), mat);
+      rock.scale.set(radius, height, radius * 0.8);
+      rock.position.y = height * 0.4;
+      const shoulder = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), mat);
+      shoulder.scale.set(radius * 1.08, height * 0.32, radius * 0.88);
+      shoulder.position.y = height * 0.1;
+      const surf = new THREE.Mesh(new THREE.TorusGeometry(radius * 0.9, Math.max(1.4, radius * 0.05), 6, 24), surfMat);
+      surf.rotation.x = Math.PI / 2;
+      surf.position.y = 0.4;
+      rock.castShadow = shoulder.castShadow = true;
+      g.add(rock, shoulder, surf);
+      g.position.set(x, 0, z);
+      offshore.add(g);
+    };
+    // 岛放在抛竿方向的中远景，压过原来的湖山剪影。
+    addIsland(26, -175, 42, 36, isleMat);
+    addIsland(-48, -250, 58, 52, isleMat);
+    addIsland(72, -390, 36, 28, isleFar);
+    addIsland(-8, -520, 78, 46, isleFar);
     offshore.visible = false;
     scene.add(offshore);
+
+    const dam = new THREE.Group();
+    dam.name = 'dress-dam';
+    const damFace = new THREE.Mesh(new THREE.BoxGeometry(5.2, 13.5, 78), concrete);
+    damFace.position.set(-12.4, 5.6, -46);
+    damFace.castShadow = damFace.receiveShadow = true;
+    dam.add(damFace);
+    const damCap = new THREE.Mesh(new THREE.BoxGeometry(6.1, 0.7, 78), concreteDark);
+    damCap.position.set(-12.4, 12.2, -46);
+    damCap.castShadow = true;
+    dam.add(damCap);
+    const damWet = new THREE.Mesh(new THREE.BoxGeometry(0.4, 4.2, 76), concreteWet);
+    damWet.position.set(-9.7, 1.5, -46);
+    dam.add(damWet);
+    for (let i = 0; i < 9; i++) {
+      const seam = new THREE.Mesh(new THREE.BoxGeometry(0.28, 12.4, 0.35), concreteDark);
+      seam.position.set(-9.65, 5.8, -14 - i * 8);
+      dam.add(seam);
+    }
+    dam.visible = false;
+    scene.add(dam);
+
     world._buoys = buoys;
-    world._dress = { coast, reef, offshore };
+    world._dress = { coast, reef, offshore, dam };
   }
 
   // ---------- 云 ----------
   {
     const tex = makeCloudTexture();
+    world._clouds = [];
     for (let i = 0; i < 9; i++) {
       const mat = new THREE.SpriteMaterial({ map: tex, color: new THREE.Color().setHSL(0.08, 0.3, rand(0.9, 1.0)), transparent: true, opacity: rand(0.25, 0.5), fog: false, depthWrite: false });
       const sp = new THREE.Sprite(mat);
       const a = Math.PI + rand(-1.6, 1.6), d = rand(3000, 6500);
       sp.position.set(Math.sin(a) * d, rand(900, 1800), Math.cos(a) * d);
       const w = rand(1800, 3800); sp.scale.set(w, w * 0.35, 1);
+      sp.userData.baseOpacity = mat.opacity;
       scene.add(sp);
+      world._clouds.push(sp);
     }
   }
 
@@ -908,52 +1131,107 @@ export function createWorld(scene, renderer, Q) {
       world._su.rayleigh.value = theme.rayleigh;
       world._su.mieCoefficient.value = theme.mie;
     }
+    const night = !!theme.night;
     world.sun.position.copy(sunDir).multiplyScalar(80).add(new THREE.Vector3(0, 0, 10));
     world.sun.color.setHex(theme.sunColor);
-    world.sun.intensity = theme.night ? 0.15 : (theme.sunIntensity || 2.55);
+    world.sun.intensity = theme.sunIntensity != null ? theme.sunIntensity : (night ? 0.15 : 2.55);
     world.hemi.color.setHex(theme.hemiSky);
     world.hemi.groundColor.setHex(theme.hemiGround);
-    world.hemi.intensity = theme.night ? 0.15 : 0.38;
-    world.fillHaze.intensity = theme.night ? 0.08 : 0.35;
-    if (world.moon) world.moon.intensity = theme.night ? 0.55 : 0;
+    world.hemi.intensity = theme.hemiIntensity != null ? theme.hemiIntensity : (night ? 0.15 : 0.38);
+    world.fillHaze.intensity = theme.fill != null ? theme.fill : (night ? 0.08 : 0.35);
+    if (world.moon) world.moon.intensity = night ? 0.42 : 0;
     const haze = new THREE.Color(theme.haze);
     scene.fog.color.copy(haze);
     scene.fog.near = theme.fogNear;
     scene.fog.far = theme.fogFar;
-    scene.background.copy(haze).multiplyScalar(theme.night ? 0.35 : 0.92);
+    scene.background.copy(haze).multiplyScalar(night ? 0.22 : 0.92);
+    if (theme.env != null) scene.environmentIntensity = theme.env;
     if (world.water) {
-      world.water.material.uniforms.waterColor.value.setHex(theme.water);
-      world.water.material.uniforms.sunColor.value.setHex(theme.sunColor);
-      world.water.material.uniforms.sunDirection.value.copy(sunDir);
-      if (world.water.material.uniforms.distortionScale) {
-        world.water.material.uniforms.distortionScale.value = theme.wave || 2.2;
-      }
+      const u = world.water.material.uniforms;
+      u.waterColor.value.setHex(theme.water);
+      u.sunColor.value.setHex(theme.sunColor);
+      u.sunDirection.value.copy(sunDir);
+      if (u.distortionScale) u.distortionScale.value = theme.wave == null ? 2.2 : theme.wave;
+      if (u.size) u.size.value = theme.waveSize == null ? 2.2 : theme.waveSize;
+      if (u.reflectance) u.reflectance.value = theme.reflectance == null ? 0.3 : theme.reflectance;
+      world._waveSpeed = theme.waveSpeed == null ? 0.55 : theme.waveSpeed;
     }
     if (world.reeds) {
       const full = world._reedFull || world.reeds.count;
-      if (theme.dress) {
-        const n = Math.max(0, Math.min(full, Math.round(full * (theme.reedBoost == null ? 1 : theme.reedBoost))));
-        world.reeds.count = n;
-        world.reeds.visible = n > 0;
-      } else {
-        world.reeds.count = full;
-        world.reeds.visible = true;
+      const boost = theme.reedBoost == null ? 1 : theme.reedBoost;
+      const n = Math.max(0, Math.min(full, Math.round(full * boost)));
+      world.reeds.count = n;
+      world.reeds.visible = n > 0;
+    }
+    if (world.reedsExtra) world.reedsExtra.visible = (theme.reedBoost || 1) >= 1.6;
+    if (world._veg) {
+      const veg = theme.veg == null ? 1 : theme.veg;
+      for (const mesh of world._veg) {
+        const full = mesh.userData.fullCount || 0;
+        const n = Math.max(0, Math.min(full, Math.round(full * veg)));
+        mesh.count = n;
+        mesh.visible = n > 0;
       }
+    }
+    if (world.ridges) {
+      const mount = theme.mount == null ? 1 : theme.mount;
+      world.ridges.visible = mount > 0.03;
+      world.ridges.scale.y = Math.max(mount, 0.03);
+      world.ridges.traverse(o => {
+        if (!o.isMesh || !o.material) return;
+        if (theme.mountColor == null) o.material.color.setHex(o.userData.baseColor ?? 0x6a7888);
+        else o.material.color.setHex(theme.mountColor);
+        o.material.opacity = theme.mountOpacity == null ? (o.userData.baseOpacity ?? 1) : theme.mountOpacity;
+      });
     }
     if (world._dress) {
       const dress = theme.dress || '';
       for (const [k, g] of Object.entries(world._dress)) g.visible = k === dress;
     }
-    if (renderer && theme.exposure != null) renderer.toneMappingExposure = theme.exposure;
-    // 地形色调
-    if (world.terrain && world._terrainBaseColors) {
-      const attr = world.terrain.geometry.attributes.color;
-      const base = world._terrainBaseColors;
-      const m = theme.terrainMul || [1, 1, 1];
-      for (let i = 0; i < attr.count; i++) {
-        attr.setXYZ(i, Math.min(1, base[i*3] * m[0]), Math.min(1, base[i*3+1] * m[1]), Math.min(1, base[i*3+2] * m[2]));
+    const marine = theme.dress === 'coast' || theme.dress === 'reef' || theme.dress === 'offshore';
+    world._hideBoat = marine;
+    if (world.lakeProps) world.lakeProps.visible = !marine;
+    if (world.boat) world.boat.visible = !marine;
+    if (world._clouds) {
+      const tint = new THREE.Color(theme.cloud == null ? 0xffffff : theme.cloud);
+      const mul = theme.cloudMul == null ? 1 : theme.cloudMul;
+      for (const sp of world._clouds) {
+        sp.material.color.copy(tint);
+        sp.material.opacity = (sp.userData.baseOpacity ?? 0.35) * mul;
       }
-      attr.needsUpdate = true;
+    }
+    if (renderer && theme.exposure != null) renderer.toneMappingExposure = theme.exposure;
+    if (world.terrain && world._terrainBaseY && world._terrainBaseColors) {
+      const pos = world.terrain.geometry.attributes.position;
+      const colAttr = world.terrain.geometry.attributes.color;
+      const baseC = world._terrainBaseColors;
+      const baseY = world._terrainBaseY;
+      const mul = theme.terrainMul || [1, 1, 1];
+      const tint = theme.terrainTint != null ? new THREE.Color(theme.terrainTint) : null;
+      const amt = theme.terrainTintAmt || 0;
+      const kind = theme.land || 'lake';
+      for (let i = 0; i < pos.count; i++) {
+        pos.setY(i, landHeight(kind, pos.getX(i), pos.getZ(i), baseY[i]));
+        let r = baseC[i * 3], g = baseC[i * 3 + 1], b = baseC[i * 3 + 2];
+        if (tint && amt) {
+          r += (tint.r - r) * amt;
+          g += (tint.g - g) * amt;
+          b += (tint.b - b) * amt;
+        }
+        colAttr.setXYZ(i, Math.min(1, r * mul[0]), Math.min(1, g * mul[1]), Math.min(1, b * mul[2]));
+      }
+      pos.needsUpdate = true;
+      colAttr.needsUpdate = true;
+      world.terrain.geometry.computeVertexNormals();
+      const maps = world._terrainMaps;
+      const flat = kind === 'coast' || kind === 'reef' || kind === 'dam' || kind === 'offshore';
+      if (maps) {
+        world.terrain.material.map = flat ? null : maps.map;
+        world.terrain.material.bumpMap = flat ? null : maps.bumpMap;
+        world.terrain.material.roughnessMap = flat ? null : maps.roughnessMap;
+        world.terrain.material.needsUpdate = true;
+      }
+      world.terrain.material.color.setHex(theme.groundTint || 0xffffff);
     }
   };
 
@@ -961,6 +1239,7 @@ export function createWorld(scene, renderer, Q) {
   world.playBoatTravel = (duration = 2.2) => {
     if (!world.boat) return Promise.resolve();
     const boat = world.boat;
+    boat.visible = true;
     const start = boat.position.clone();
     const mid = start.clone().add(new THREE.Vector3(-25, 0, -40));
     const t0 = performance.now();
@@ -992,7 +1271,7 @@ export function createWorld(scene, renderer, Q) {
   const _billDummy = new THREE.Object3D();
   let _billAcc = 0;
   world.update = (dt, t, camera) => {
-    water.material.uniforms.time.value += dt * 0.55;
+    water.material.uniforms.time.value += dt * (world._waveSpeed == null ? 0.55 : world._waveSpeed);
     if (world.fisher) world.fisher.userData.update(dt, t);
     if (world.rainbow && world.rainbow.visible && world._pathTiles) {
       for (let i = 0; i < world._pathTiles.length; i++) {
