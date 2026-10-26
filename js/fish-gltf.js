@@ -5,8 +5,8 @@
 // 扫描件没有 Draco，GLTFLoader 直接读 WebP + KHR_mesh_quantization。
 import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/addons/GLTFLoader.js';
-import { locationById } from './locations.js?v=15';
-import { SCAN_MODELS, SCAN_SPECIES_MAP, SPECIES_PLACES } from './scan-catalog.js?v=15';
+import { locationById } from './locations.js?v=16';
+import { SCAN_MODELS, SCAN_SPECIES_MAP, SPECIES_PLACES } from './scan-catalog.js?v=16';
 
 const BASE = 'vendor/fish/real/';
 // axis：模型体长所在轴；head：头部在该轴的正(+1)或负(-1)方向。
