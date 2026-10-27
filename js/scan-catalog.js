@@ -1,16 +1,18 @@
 // 扫模目录：ffish.asia CC0，无 Draco。slug 里的连字符在物种 id 和文件名里写成下划线。
 // 已有图鉴物种（鲤、鲫、鲶、黄颡、黑鱼、马口、泥鳅、黄鳝）只登记模型，不重复加物种。
 // 新物种带 places，只在对应钓场进池。文件还没进仓库时，加载失败会回退程序化网格。
+// roll 绕体长轴转 180°，只在对齐头朝 +X 之后背鳍仍在 -Y 时才加。
+// 鲫、马口、泥鳅扫描本身已经背朝 +Y，再 roll 会在渔获卡里底朝上。
 export const SCAN_MODELS = {
   scan_carp: {"file":"scan_carp.glb","axis":"x","head":1},
   scan_catfish: {"file":"scan_catfish.glb","axis":"x","head":1},
-  scan_crucian: {"file":"scan_crucian.glb","axis":"x","head":1,"roll":1},
-  scan_horsemouth: {"file":"scan_horsemouth.glb","axis":"x","head":1,"roll":1},
+  scan_crucian: {"file":"scan_crucian.glb","axis":"x","head":1},
+  scan_horsemouth: {"file":"scan_horsemouth.glb","axis":"x","head":1},
   scan_snakehead: {"file":"scan_snakehead.glb","axis":"x","head":1},
   scan_ayu: {"file":"scan_ayu.glb","axis":"x","head":-1},
   scan_bass: {"file":"scan_bass.glb","axis":"x","head":-1},
   scan_bluegill: {"file":"scan_bluegill.glb","axis":"x","head":-1,"roll":1},
-  scan_loach: {"file":"scan_loach.glb","axis":"x","head":-1,"roll":1},
+  scan_loach: {"file":"scan_loach.glb","axis":"x","head":-1},
   scan_threelips: {"file":"scan_threelips.glb","axis":"x","head":-1},
   scan_ariakecat: {"file":"scan_ariakecat.glb","axis":"x","head":-1},
   scan_auchaperch: {"file":"scan_auchaperch.glb","axis":"x","head":-1},
