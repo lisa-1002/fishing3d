@@ -1,7 +1,7 @@
 // 钓点 / 地图：视觉主题 + 鱼种权重 + 传说钥匙推进
 // 解锁链：湖湾 → 溪流 → 湿地 → 夜钓 → 大坝 → 近海码头 → 热带礁盘 → 外海拖钓
 // （当前图钓到传说 → 获得下一站钥匙 → 交给黑衣人开船）
-import { SCAN_SPECIES, SCAN_SPOT } from './scan-catalog.js?v=16';
+import { SCAN_SPECIES, SCAN_SPOT } from './scan-catalog.js?v=17';
 
 function withScans(locId, base) {
   const w = { ...base };

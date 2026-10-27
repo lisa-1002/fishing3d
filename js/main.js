@@ -1,14 +1,14 @@
 // 静湖垂钓 3D v4 —— 渲染、输入、台钓/露亚双玩法状态机、音效、新手教学
 import * as THREE from 'three';
-import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=16';
-import { locationById, LOCATION_ORDER, LOCATIONS } from './locations.js?v=16';
-import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails, fightDiff, catchLevel } from './fish.js?v=16';
-import { preloadForLocation, preloadSpeciesModel, tickFishAnim } from './fish-gltf.js?v=16';
-import { RODS, LURES, BAITS } from './data.js?v=16';
-import { loadSave } from './save.js?v=16';
-import { createSystems } from './systems.js?v=16';
-import { createUI } from './ui.js?v=16';
-import { createAudio } from './audio.js?v=16';
+import { createWorld, DECK_Y, DOCK_END_Z, heightAt } from './world.js?v=17';
+import { locationById, LOCATION_ORDER, LOCATIONS } from './locations.js?v=17';
+import { SPECIES, RARITY, speciesById, buildFish, makeThumbnails, fightDiff, catchLevel } from './fish.js?v=17';
+import { preloadForLocation, preloadSpeciesModel, tickFishAnim } from './fish-gltf.js?v=17';
+import { RODS, LURES, BAITS } from './data.js?v=17';
+import { loadSave } from './save.js?v=17';
+import { createSystems } from './systems.js?v=17';
+import { createUI } from './ui.js?v=17';
+import { createAudio } from './audio.js?v=17';
 import { clamp, lerp, rand } from './util.js';
 
 // ---------------- 画质 ----------------

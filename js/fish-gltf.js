@@ -5,11 +5,12 @@
 // 扫描件没有 Draco，GLTFLoader 直接读 WebP + KHR_mesh_quantization。
 import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/addons/GLTFLoader.js';
-import { locationById } from './locations.js?v=16';
-import { SCAN_MODELS, SCAN_SPECIES_MAP, SPECIES_PLACES } from './scan-catalog.js?v=16';
+import { locationById } from './locations.js?v=17';
+import { SCAN_MODELS, SCAN_SPECIES_MAP, SPECIES_PLACES } from './scan-catalog.js?v=17';
 
 const BASE = 'vendor/fish/real/';
 // axis：模型体长所在轴；head：头部在该轴的正(+1)或负(-1)方向。
+// roll：对齐到头朝 +X 之后若背鳍在 -Y，再绕 X 转 180°。目前只有蓝鳃需要。
 // 扫描件的朝向在 scan-catalog.js。还没逐条看过的新扫模沿用近期批次：体长在 X，头朝 -X，载入时转到 +X。
 const MODELS = {
   koi:        { file: 'koi.glb',             axis: 'z', head: 1 },
