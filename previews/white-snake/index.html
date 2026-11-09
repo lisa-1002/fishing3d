@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#101820" />
+<title>断桥烟雨</title>
+<link rel="stylesheet" href="../lib/ui.css" />
+<style>
+  #frame { --accent1: #7eb8b0; --accent2: #1f5a4e; --gold: #d4b56a; }
+  #start {
+    background-image:
+      linear-gradient(180deg, rgba(8,16,22,.25) 0%, rgba(8,16,22,.52) 44%, rgba(8,16,22,.92) 78%),
+      url("./assets/kv-9x16.jpg");
+    background-size: cover;
+    background-position: center;
+  }
+  #end {
+    background-color: #101820;
+    background-size: cover;
+    background-position: center;
+  }
+</style>
+<script type="importmap">
+{ "imports": { "three": "../../vendor/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="frame">
+  <div id="view"></div>
+  <div id="start" class="panel">
+    <div class="badge">原创竖屏轻游 · 公版传说灵感</div>
+    <h1>断桥烟雨</h1>
+    <p class="lead">烟雨断桥边，白衣娘子为许仙采药。
+点按地面沿湖岸行走，水面踏不进去。
+集齐 5 株草药，再走上暖灯断桥。
+僧影比你慢；若被追上，或在他逼近时踏进塔影，便是另一结局。</p>
+    <button class="btn" id="btnStart" type="button">踏入烟雨</button>
+  </div>
+  <div id="hud">
+    <div class="chip">草药 <b id="herbs">0</b> / 5</div>
+    <div class="chip">距断桥 <b id="dist">—</b></div>
+  </div>
+  <div id="toast"></div>
+  <div id="hint" class="hint">沿湖岸走 · 水面走不过去 · 东岸采药更安全</div>
+  <div id="end" class="panel hidden" data-kind="">
+    <div class="end-icon" id="endIcon">🌉</div>
+    <div class="badge" id="endBadge">结局</div>
+    <h1 id="endTitle">断桥暖灯</h1>
+    <p class="lead" id="endLead"></p>
+    <button class="btn" id="btnReplay" type="button">再走一遭</button>
+  </div>
+</div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>

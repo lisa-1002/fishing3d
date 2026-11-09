@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#141820" />
+<title>林间试炼</title>
+<link rel="stylesheet" href="../lib/ui.css" />
+<style>
+  #frame { --accent1: #c45c7a; --accent2: #8b3a55; --gold: #d4a84b; }
+  #start {
+    background-image:
+      linear-gradient(180deg, rgba(10,14,12,.2) 0%, rgba(10,14,12,.5) 46%, rgba(10,14,12,.92) 78%),
+      url("./assets/kv-9x16.jpg");
+  }
+  #end {
+    background-image:
+      linear-gradient(180deg, rgba(10,14,12,.55), rgba(10,14,12,.93)),
+      url("./assets/kv-9x16.jpg");
+  }
+</style>
+<script type="importmap">
+{ "imports": { "three": "../../vendor/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="frame">
+  <div id="view"></div>
+  <div id="start" class="panel">
+    <div class="badge">原创竖屏轻游 · 格林童话灵感</div>
+    <h1>林间试炼</h1>
+    <p class="lead">白衣公主误入暮色森林。
+甜红苹果可安心采撷，毒红苹果藏着睡意。
+点按地面移动，靠近或点按苹果采集。
+集齐 5 颗甜果，或误食 3 次毒果——结局由你。</p>
+    <img class="ref" src="./assets/apple-pair.jpg" alt="甜红与毒红苹果对照" width="220" height="120" />
+    <button class="btn" id="btnStart" type="button">开始试炼</button>
+  </div>
+  <div id="hud">
+    <div class="chip">甜果 <b id="score">0</b> / 5</div>
+    <div class="chip">清醒 <b id="lives">3</b></div>
+  </div>
+  <div id="toast"></div>
+  <div id="hint" class="hint">点按地面行走 · 点按苹果采集 · 也可 WASD</div>
+  <div id="end" class="panel hidden" data-kind="">
+    <div class="end-icon" id="endIcon">✨</div>
+    <div class="badge" id="endBadge">结局</div>
+    <h1 id="endTitle">林光归途</h1>
+    <p class="lead" id="endLead"></p>
+    <button class="btn" id="btnReplay" type="button">再试一次</button>
+  </div>
+</div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>
