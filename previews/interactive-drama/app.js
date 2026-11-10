@@ -50,9 +50,9 @@ const lights = addLights(THREE, scene, {
   sky: 0xc5d4ef,
   ground: 0x1a2018,
   sun: 0xd7e4f8,
-  sunIntensity: 0.95,
+  sunIntensity: 1.25,
   ambient: 0x223048,
-  ambientIntensity: 0.34,
+  ambientIntensity: 0.42,
   rim: 0xf0e2b0,
   rimIntensity: 0.42,
   sx: 8,
@@ -75,7 +75,7 @@ const moss = paintTexture(THREE, renderer, 64, (x, y) => {
 
 const deck = new THREE.Mesh(
   new THREE.CircleGeometry(26, 32),
-  new THREE.MeshStandardMaterial({ map: moss, roughness: 1 })
+  new THREE.MeshStandardMaterial({ map: moss, color: 0x6a7a72, roughness: 1 })
 );
 deck.rotation.x = -Math.PI / 2;
 deck.position.y = -0.4;
@@ -85,7 +85,7 @@ scene.add(deck);
 for (let z = 7.5; z >= -4.05; z -= 0.5) {
   const step = new THREE.Mesh(
     new THREE.BoxGeometry(4.3, 0.22, 0.5),
-    new THREE.MeshStandardMaterial({ map: stoneTex, roughness: 0.9 })
+    new THREE.MeshStandardMaterial({ map: stoneTex, color: 0xa4aab0, roughness: 0.9 })
   );
   step.position.set(0, groundY(z) - 0.08, z);
   step.castShadow = true;
@@ -94,18 +94,22 @@ for (let z = 7.5; z >= -4.05; z -= 0.5) {
 }
 const plaza = new THREE.Mesh(
   new THREE.BoxGeometry(7.8, 0.28, 3.6),
-  new THREE.MeshStandardMaterial({ map: stoneTex, color: 0xded6cc, roughness: 0.88 })
+  new THREE.MeshStandardMaterial({ map: stoneTex, color: 0x8a9298, roughness: 0.9 })
 );
 plaza.position.set(-0.35, groundY(-5.7) - 0.05, -5.7);
 plaza.receiveShadow = true;
 plaza.castShadow = true;
 scene.add(plaza);
 
-const rockMat = new THREE.MeshStandardMaterial({ color: 0x6a727c, roughness: 0.95 });
-for (let i = 0; i < 9; i++) {
-  const a = (i / 9) * Math.PI * 2;
-  const peak = new THREE.Mesh(new THREE.ConeGeometry(2.4 + (i % 3) * 0.8, 7 + (i % 4) * 1.6, 5), rockMat);
-  peak.position.set(Math.cos(a) * (11 + (i % 2) * 3), 1.2, Math.sin(a) * 12 - 2);
+const rockMat = new THREE.MeshStandardMaterial({ color: 0x3a4654, roughness: 0.96 });
+for (let i = 0; i < 10; i++) {
+  const a = (i / 10) * Math.PI * 2 + 0.4;
+  const peak = new THREE.Mesh(new THREE.ConeGeometry(2.2 + (i % 3) * 0.85, 8 + (i % 4) * 2.2, 7), rockMat);
+  const radius = 13 + (i % 3) * 1.6;
+  const x = Math.cos(a) * radius;
+  const z = Math.sin(a) * radius - 4;
+  if (Math.abs(x) < 6 && z > -8) continue;
+  peak.position.set(x, 1.4, z);
   scene.add(peak);
 }
 const chasm = new THREE.Mesh(
@@ -118,35 +122,40 @@ scene.add(chasm);
 function makeGate() {
   const g = new THREE.Group();
   const wood = new THREE.MeshStandardMaterial({ color: 0x3a2e24, roughness: 0.74 });
-  const gold = new THREE.MeshStandardMaterial({
-    color: 0xd4b56a,
-    roughness: 0.42,
-    metalness: 0.25,
-    emissive: 0x5a4018,
-    emissiveIntensity: 0.35,
-  });
+  const tile = new THREE.MeshStandardMaterial({ color: 0x1c6a60, roughness: 0.42, metalness: 0.18 });
+  const tileDark = new THREE.MeshStandardMaterial({ color: 0x143e3c, roughness: 0.5, metalness: 0.12 });
   const pillarL = new THREE.Mesh(new THREE.BoxGeometry(0.38, 2.7, 0.38), wood);
-  pillarL.position.set(-1.2, 1.35, 0);
+  pillarL.position.set(-1.35, 1.35, 0);
   pillarL.castShadow = true;
   const pillarR = pillarL.clone();
-  pillarR.position.x = 1.2;
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.28, 0.55), gold);
+  pillarR.position.x = 1.35;
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.28, 0.55), tileDark);
   beam.position.y = 2.65;
-  const roof = new THREE.Mesh(
-    new THREE.BoxGeometry(3.5, 0.16, 1.15),
-    new THREE.MeshStandardMaterial({ color: 0x243044, roughness: 0.62 })
-  );
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.16, 1.35), tile);
   roof.position.y = 2.95;
-  const cap = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.14, 0.7), gold);
-  cap.position.y = 3.18;
+  const eave = new THREE.Mesh(new THREE.BoxGeometry(4.15, 0.08, 1.7), tileDark);
+  eave.position.y = 2.78;
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.12, 0.78), tile);
+  cap.position.y = 3.2;
+  for (const x of [-1.85, 1.85]) {
+    const horn = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.42, 6), tile);
+    horn.position.set(x, 3.05, 0.62);
+    horn.rotation.z = x > 0 ? -0.7 : 0.7;
+    g.add(horn);
+  }
+  const plaque = new THREE.Mesh(
+    new THREE.BoxGeometry(0.78, 0.38, 0.06),
+    new THREE.MeshStandardMaterial({ color: 0x241c16, roughness: 0.82 })
+  );
+  plaque.position.set(0, 2.2, 0.3);
   const bulb = new THREE.Mesh(
     new THREE.SphereGeometry(0.12, 10, 8),
     new THREE.MeshStandardMaterial({ color: 0xffe1a8, emissive: 0xffc56a, emissiveIntensity: 1 })
   );
-  bulb.position.set(0, 2.2, 0.25);
-  const light = new THREE.PointLight(0xffe1a8, 4, 12, 2);
-  light.position.set(0, 2.2, 0.4);
-  g.add(pillarL, pillarR, beam, roof, cap, bulb, light);
+  bulb.position.set(0, 2.05, 0.36);
+  const light = new THREE.PointLight(0xffc58a, 6, 14, 2);
+  light.position.set(0, 2.05, 0.5);
+  g.add(pillarL, pillarR, beam, roof, eave, cap, plaque, bulb, light);
   return g;
 }
 const gate = makeGate();
@@ -164,13 +173,6 @@ const riftMat = new THREE.MeshStandardMaterial({
 const rift = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 1.7), riftMat);
 rift.position.set(0.15, groundY(-6.15) + 0.9, -6.15);
 scene.add(rift);
-
-const moon = new THREE.Mesh(
-  new THREE.SphereGeometry(1.1, 16, 12),
-  new THREE.MeshBasicMaterial({ color: 0xf4f0e4 })
-);
-moon.position.set(6.5, 16, -8);
-scene.add(moon);
 
 for (const z of [6.2, 4.2, 1.4, -1.2]) {
   const post = new THREE.Mesh(
@@ -231,12 +233,14 @@ altar.visible = false;
 scene.add(altar);
 
 const hero = makeFigure(THREE, {
-  dress: 0x6d7e96,
+  dress: 0x2c6a66,
   dressShape: "robe",
   hairStyle: "bun",
-  hair: 0x1a120e,
+  hair: 0x16181c,
   prop: "sword",
+  sash: 0x7eb8b0,
 });
+dressShenYan(hero);
 scene.add(hero);
 const atao = makeFigure(THREE, {
   dress: 0xf0d5c8,
@@ -270,14 +274,15 @@ scene.add(elder);
 const marker = makeMarker(THREE, 0xf0e2b0);
 scene.add(marker);
 
-new THREE.TextureLoader().load("./assets/bg-night.jpg", (tex) => {
+new THREE.TextureLoader().load("./assets/sky-gate-night.png", (tex) => {
   tex.colorSpace = THREE.SRGBColorSpace;
-  const cyclorama = new THREE.Mesh(
-    new THREE.PlaneGeometry(36, 18),
-    new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.42, fog: false })
+  const skyPlate = new THREE.Mesh(
+    new THREE.PlaneGeometry(64, 22),
+    new THREE.MeshBasicMaterial({ map: tex, fog: false, depthWrite: true })
   );
-  cyclorama.position.set(0, 8.5, -18);
-  scene.add(cyclorama);
+  skyPlate.position.set(1.4, 12.4, -16);
+  skyPlate.renderOrder = -1;
+  scene.add(skyPlate);
 });
 
 const actors = [
@@ -325,6 +330,50 @@ const state = {
   story: null,
   blockedT: 0,
 };
+
+function dressShenYan(figure) {
+  const trim = new THREE.MeshStandardMaterial({ color: 0xd7ded8, roughness: 0.55 });
+  const ribbon = new THREE.MeshStandardMaterial({
+    color: 0x8ec4bc,
+    roughness: 0.5,
+    side: THREE.DoubleSide,
+  });
+  const cuffL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.05, 0.12), trim);
+  cuffL.position.set(-0.32, 0.96, 0.02);
+  const cuffR = cuffL.clone();
+  cuffR.position.x = 0.34;
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.022, 6, 14), trim);
+  collar.rotation.x = Math.PI / 2;
+  collar.position.y = 1.4;
+  const strap = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.035, 0.028), trim);
+  strap.position.set(0.02, 1.18, -0.1);
+  strap.rotation.z = 0.85;
+  const tailA = new THREE.Mesh(new THREE.PlaneGeometry(0.11, 0.78), ribbon);
+  tailA.position.set(-0.16, 0.7, -0.16);
+  const tailB = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.64), ribbon);
+  tailB.position.set(-0.3, 0.66, -0.12);
+  tailB.rotation.z = 0.18;
+  const tassel = new THREE.Mesh(
+    new THREE.BoxGeometry(0.028, 0.18, 0.028),
+    new THREE.MeshStandardMaterial({ color: 0xf0ece4, roughness: 0.45 })
+  );
+  tassel.position.set(0.28, 0.5, 0.08);
+  for (const y of [0.22, 0.34]) {
+    for (const x of [-0.12, 0.12]) {
+      const wrap = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.012, 4, 8), trim);
+      wrap.rotation.x = Math.PI / 2;
+      wrap.position.set(x, y, 0);
+      figure.add(wrap);
+    }
+  }
+  figure.add(cuffL, cuffR, collar, strap, tailA, tailB, tassel);
+  const previous = figure.userData.animate;
+  figure.userData.animate = (moving, time) => {
+    previous(moving, time);
+    tailA.rotation.y = Math.sin(time * 1.7) * 0.2;
+    tailB.rotation.y = Math.sin(time * 1.7 + 0.7) * 0.24;
+  };
+}
 
 function walkable(x, z) {
   if (z <= -4.12 && z >= -7.15 && x >= -3.65 && x <= 2.5) return true;
@@ -668,10 +717,10 @@ function tick() {
   atao.userData.animate(false, time);
   elder.userData.animate(false, time + 1);
   aimCamera(camera, hero, dt, state.snap || state.phase !== "play", {
-    back: 7.6,
-    height: 5.6,
-    ahead: 5.2,
-    lookH: 1.3,
+    back: 7.2,
+    height: 4.5,
+    ahead: 6.6,
+    lookH: 2.35,
   });
   state.snap = false;
   if (state.phase === "start" || state.phase === "boot") {
