@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#121018" />
+<title>林间红帽</title>
+<link rel="stylesheet" href="../lib/ui.css" />
+<style>
+  #frame { --accent1: #d62828; --accent2: #8b2a2a; --gold: #d4a84b; }
+  #start, #end {
+    background-image:
+      linear-gradient(180deg, rgba(10,12,18,.28) 0%, rgba(10,12,18,.55) 46%, rgba(10,12,18,.92) 80%),
+      url("./assets/kv-9x16.jpg");
+  }
+</style>
+<script type="importmap">
+{ "imports": { "three": "../../vendor/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="frame">
+  <div id="view"></div>
+  <div id="start" class="panel">
+    <div class="badge">原创竖屏轻游 · 公版童话灵感</div>
+    <h1>林间红帽</h1>
+    <p class="lead">暮林里，红斗篷要护送餐篮到亮灯小屋。
+点按地面沿路行走，也可以用 WASD。
+红果能让步子快一阵。狼影比你慢，但停下贪果会被追上。
+走到暖灯门口即安。</p>
+    <button class="btn" id="btnStart" type="button">进入密林</button>
+  </div>
+  <div id="hud">
+    <div class="chip">红果 <b id="berries">0</b></div>
+    <div class="chip">距小屋 <b id="dist">—</b></div>
+  </div>
+  <div id="toast"></div>
+  <div id="hint" class="hint">点按地面移动 · 狼在路左侧 · 右侧红果可提速</div>
+  <div id="end" class="panel hidden" data-kind="">
+    <div class="end-icon" id="endIcon">🏠</div>
+    <div class="badge" id="endBadge">结局</div>
+    <h1 id="endTitle">灯火到站</h1>
+    <p class="lead" id="endLead"></p>
+    <button class="btn" id="btnReplay" type="button">再走一遭</button>
+  </div>
+</div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>

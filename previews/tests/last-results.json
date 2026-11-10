@@ -1,0 +1,150 @@
+[
+  {
+    "id": "snow-white",
+    "viewport": "mobile",
+    "ok": true,
+    "detail": {
+      "sample": {
+        "avg": 51.47395833333334,
+        "max": 68,
+        "min": 39.666666666666664,
+        "span": 28.333333333333336,
+        "w": 390,
+        "h": 693
+      },
+      "goodTitle": "林光归途",
+      "badTitle": "紫果入梦"
+    }
+  },
+  {
+    "id": "red-hood",
+    "viewport": "mobile",
+    "ok": true,
+    "detail": {
+      "sample": {
+        "avg": 39.06365740740739,
+        "max": 43.333333333333336,
+        "min": 32.333333333333336,
+        "span": 11,
+        "w": 390,
+        "h": 693
+      },
+      "goodTitle": "灯火到站",
+      "badTitle": "狼影追上",
+      "berries": 1
+    }
+  },
+  {
+    "id": "white-snake",
+    "viewport": "mobile",
+    "ok": true,
+    "detail": {
+      "sample": {
+        "avg": 110.62037037037022,
+        "max": 152,
+        "min": 72,
+        "span": 80,
+        "w": 390,
+        "h": 693
+      },
+      "goodTitle": "断桥暖灯",
+      "badTitle": "雷峰塔影",
+      "wet": {
+        "ok": true,
+        "lake": 5.516228296440019,
+        "feedback": "草药 +1"
+      }
+    }
+  },
+  {
+    "id": "interactive-drama",
+    "viewport": "mobile",
+    "ok": true,
+    "detail": {
+      "sample": {
+        "avg": 57.438657407407376,
+        "max": 98.66666666666667,
+        "min": 28,
+        "span": 70.66666666666667,
+        "w": 390,
+        "h": 693
+      },
+      "goodTitle": "结局 · 剑心未钝",
+      "badTitle": "结局 · 锋吞其人"
+    }
+  },
+  {
+    "id": "snow-white",
+    "viewport": "desktop",
+    "ok": true,
+    "detail": {
+      "sample": {
+        "avg": 51.69212962962959,
+        "max": 67.66666666666667,
+        "min": 41,
+        "span": 26.66666666666667,
+        "w": 450,
+        "h": 800
+      },
+      "goodTitle": "林光归途",
+      "badTitle": "紫果入梦"
+    }
+  },
+  {
+    "id": "red-hood",
+    "viewport": "desktop",
+    "ok": true,
+    "detail": {
+      "sample": {
+        "avg": 39.06944444444439,
+        "max": 43.666666666666664,
+        "min": 33.666666666666664,
+        "span": 10,
+        "w": 450,
+        "h": 800
+      },
+      "goodTitle": "灯火到站",
+      "badTitle": "狼影追上",
+      "berries": 1
+    }
+  },
+  {
+    "id": "white-snake",
+    "viewport": "desktop",
+    "ok": true,
+    "detail": {
+      "sample": {
+        "avg": 111.62210648148135,
+        "max": 152.33333333333334,
+        "min": 72,
+        "span": 80.33333333333334,
+        "w": 450,
+        "h": 800
+      },
+      "goodTitle": "断桥暖灯",
+      "badTitle": "雷峰塔影",
+      "wet": {
+        "ok": true,
+        "lake": 5.574625691474912,
+        "feedback": "草药 +1"
+      }
+    }
+  },
+  {
+    "id": "interactive-drama",
+    "viewport": "desktop",
+    "ok": true,
+    "detail": {
+      "sample": {
+        "avg": 59.60648148148156,
+        "max": 99.66666666666667,
+        "min": 26.333333333333332,
+        "span": 73.33333333333334,
+        "w": 450,
+        "h": 800
+      },
+      "goodTitle": "结局 · 剑心未钝",
+      "badTitle": "结局 · 锋吞其人"
+    }
+  }
+]

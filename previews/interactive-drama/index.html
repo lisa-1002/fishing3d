@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#0c1018" />
+<title>问剑云深</title>
+<link rel="stylesheet" href="./styles.css" />
+<script type="importmap">
+{ "imports": { "three": "../../vendor/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="frame">
+  <div id="view"></div>
+  <div id="bg" class="bg night"></div>
+  <section id="screen-start" class="screen">
+    <div class="panel">
+      <div class="eyebrow" id="brand">古装仙侠 · 互动剧</div>
+      <h1 id="title">问剑云深</h1>
+      <p class="lead" id="subtitle">木剑问心，一念成锋或成劫</p>
+      <button class="btn" id="btn-start" type="button">踏入云梯</button>
+      <p class="hint">竖屏 · 点地沿石阶上行 · 走到人与剑跟前再选择</p>
+    </div>
+  </section>
+  <section id="screen-play" class="screen" hidden>
+    <div class="play-top">
+      <span id="progress">试剑中</span>
+      <span id="trust-hint"></span>
+    </div>
+    <div class="dock">
+      <div class="scene-label" id="scene-label">云梯</div>
+      <div class="panel dialogue" id="dialog" hidden>
+        <div class="speaker" id="speaker"></div>
+        <div class="line" id="line"></div>
+        <div class="choices" id="choices"></div>
+      </div>
+      <div class="move-hint" id="move-hint">点按石阶行走 · 也可 WASD</div>
+    </div>
+  </section>
+  <section id="screen-end" class="screen" hidden data-kind="">
+    <div class="panel">
+      <div class="eyebrow">结局</div>
+      <h2 id="ending-title"></h2>
+      <div class="tags" id="end-tags"></div>
+      <p id="ending-body"></p>
+      <button class="btn" id="btn-replay" type="button">再问一剑</button>
+    </div>
+  </section>
+  <div id="toast"></div>
+</div>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
