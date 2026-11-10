@@ -1,30 +1,27 @@
 import * as THREE from "three";
 import {
-  addLights,
   aimCamera,
   bindResize,
   chime,
-  groundHit,
-  makeCottage,
-  makeFigure,
-  makeHills,
-  makeMarker,
-  makePine,
-  makeSky,
-  paintTexture,
   farBehind,
+  groundHit,
+  makeMarker,
   pickByScreen,
   publishQA,
   resolveEnding,
   setupRenderer,
   stepToward,
-  valueNoise,
 } from "../lib/kit.js";
+import { buildGlade, makeApple, makeMushroom, makePrincess } from "./art.js";
 
 const GOAL = 5;
+const REACH = 0.68;
+const TAP_PX = 52;
+const FOOT_SLOP = 1.05;
 const SPAWN = { x: 0, z: 5.55 };
 const COTTAGE = { x: -4.2, z: -3.15, r: 1.58 };
 const WALK_R = 7.2;
+const CAM = { back: 7.9, height: 5.7, ahead: 4.05, lookH: 0.95 };
 const APPLES = [
   { id: "s1", kind: "sweet", x: -2.15, z: 1.85 },
   { id: "s2", kind: "sweet", x: 2.05, z: 1.05 },
@@ -56,152 +53,42 @@ const el = {
 
 const renderer = setupRenderer(THREE, view);
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x2a3144, 0.026);
-scene.add(makeSky(THREE, 0x6e7c9a, 0xc48b78, 0x2a3144));
-const camera = new THREE.PerspectiveCamera(48, 9 / 16, 0.1, 120);
-addLights(THREE, scene, {
-  sky: 0xffd8c2,
-  ground: 0x243024,
-  sun: 0xffe0c4,
-  sunIntensity: 1.35,
-  ambient: 0x4a5568,
-  rim: 0x88a0c8,
-  sx: 7,
-  sy: 16,
-  sz: 8,
-});
+const camera = new THREE.PerspectiveCamera(46, 9 / 16, 0.1, 140);
+const glade = buildGlade(THREE, renderer, scene);
 
-const grass = paintTexture(THREE, renderer, 128, (x, y, s) => {
-  const n = valueNoise(x / 18, y / 18);
-  const m = valueNoise(x / 6, y / 6);
-  const r = 62 + n * 30 + m * 18;
-  const g = 92 + n * 40 + m * 10;
-  const b = 58 + n * 16;
-  return [r, g, b];
-}, 6);
-const dirt = paintTexture(THREE, renderer, 128, (x, y) => {
-  const n = valueNoise(x / 10, y / 10);
-  return [92 + n * 40, 74 + n * 24, 48 + n * 16];
-}, 3);
-
-const ground = new THREE.Mesh(
-  new THREE.CircleGeometry(18, 48),
-  new THREE.MeshStandardMaterial({ map: grass, roughness: 0.96 })
-);
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-scene.add(ground);
-const clearing = new THREE.Mesh(
-  new THREE.CircleGeometry(WALK_R + 0.4, 40),
-  new THREE.MeshStandardMaterial({ map: grass, color: 0xd5e2c4, roughness: 0.94 })
-);
-clearing.rotation.x = -Math.PI / 2;
-clearing.position.y = 0.015;
-clearing.receiveShadow = true;
-scene.add(clearing);
-const path = new THREE.Mesh(
-  new THREE.RingGeometry(2.1, 3.5, 40),
-  new THREE.MeshStandardMaterial({ map: dirt, roughness: 1 })
-);
-path.rotation.x = -Math.PI / 2;
-path.position.y = 0.03;
-scene.add(path);
-scene.add(makeHills(THREE, 0x3d4a58, 22));
-
-for (let i = 0; i < 22; i++) {
-  const a = (i / 22) * Math.PI * 2;
-  const r = 8.4 + (i % 3) * 0.85;
-  const tree = makePine(THREE, 0.9 + (i % 4) * 0.16, i % 2 ? 0x2c5a3c : 0x245038);
-  tree.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
-  scene.add(tree);
-}
-
-const cottage = makeCottage(THREE, { wall: 0xe4d2b0, roof: 0x8d3a32 });
+const cottage = glade.cottage;
 cottage.position.set(COTTAGE.x, 0, COTTAGE.z);
-cottage.rotation.y = 0.7;
+cottage.rotation.y = Math.atan2(-COTTAGE.x, -COTTAGE.z);
 scene.add(cottage);
 
-const hero = makeFigure(THREE, {
-  dress: 0xf4f1ea,
-  dressShape: "skirt",
-  hairStyle: "bun",
-  hair: 0x1a120f,
-  bow: 0xc45c7a,
-  sash: 0x7ec8cf,
-});
+const hero = makePrincess(THREE);
+const shadow = new THREE.Mesh(
+  new THREE.CircleGeometry(0.42, 18),
+  new THREE.MeshBasicMaterial({ color: 0x0c1210, transparent: true, opacity: 0.32, depthWrite: false })
+);
+shadow.rotation.x = -Math.PI / 2;
+shadow.position.y = 0.03;
+shadow.castShadow = false;
+hero.add(shadow);
 scene.add(hero);
 
-function makeMushroom(hue, x, z) {
-  const g = new THREE.Group();
-  const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.16, 0.2, 0.42, 8),
-    new THREE.MeshStandardMaterial({ color: 0xf3e2cf, roughness: 0.7 })
-  );
-  stem.position.y = 0.21;
-  stem.castShadow = true;
-  const cap = new THREE.Mesh(
-    new THREE.SphereGeometry(0.3, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-    new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(hue, 0.5, 0.46), roughness: 0.68 })
-  );
-  cap.position.y = 0.42;
-  cap.castShadow = true;
-  g.add(stem, cap);
+function placeMushroom(hue, x, z) {
+  const g = makeMushroom(THREE, hue);
   g.position.set(x, 0, z);
   g.userData = { baseX: x, baseZ: z, phase: hue * 10 };
   scene.add(g);
   return g;
 }
-const helpers = [0.02, 0.08, 0.16, 0.32, 0.55, 0.72, 0.9].map((h, i) => {
-  const a = (i / 7) * Math.PI * 2;
-  return makeMushroom(h, Math.cos(a) * 3.3, Math.sin(a) * 3.1 - 0.4);
+const helpers = [0.02, 0.08, 0.16, 0.32, 0.55, 0.72, 0.9].map((hue, i) => {
+  const a = (i / 7) * Math.PI * 2 + 0.35;
+  return placeMushroom(hue, Math.cos(a) * 5.45, Math.sin(a) * 5.45);
 });
 
-function makeApple(kind) {
-  const sweet = kind === "sweet";
-  const g = new THREE.Group();
-  const fruit = new THREE.Mesh(
-    new THREE.SphereGeometry(0.3, 16, 12),
-    new THREE.MeshStandardMaterial({
-      color: sweet ? 0xd64545 : 0x6a2458,
-      roughness: 0.38,
-      metalness: 0.05,
-      emissive: sweet ? 0x5a1014 : 0x2a0830,
-      emissiveIntensity: 0.28,
-    })
-  );
-  fruit.scale.set(1, 0.92, 1);
-  fruit.castShadow = true;
-  const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.025, 0.025, 0.16, 5),
-    new THREE.MeshStandardMaterial({ color: 0x3a2814 })
-  );
-  stem.position.y = 0.32;
-  const leaf = new THREE.Mesh(
-    new THREE.SphereGeometry(0.08, 6, 4),
-    new THREE.MeshStandardMaterial({ color: sweet ? 0x3e9a48 : 0x2a4a30 })
-  );
-  leaf.scale.set(1.5, 0.35, 0.7);
-  leaf.position.set(0.08, 0.34, 0);
-  const ring = new THREE.Mesh(
-    new THREE.RingGeometry(0.28, 0.4, 16),
-    new THREE.MeshBasicMaterial({
-      color: sweet ? 0xe07a4a : 0x7a3a88,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.85,
-    })
-  );
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.y = 0.03;
-  g.add(fruit, stem, leaf, ring);
-  return g;
-}
-
 const items = APPLES.map((spec) => {
-  const mesh = makeApple(spec.kind);
-  mesh.position.set(spec.x, 0.32, spec.z);
+  const mesh = makeApple(THREE, spec.kind);
+  mesh.position.set(spec.x, 0, spec.z);
   scene.add(mesh);
-  return { ...spec, y: 0.45, mesh, alive: true };
+  return { ...spec, y: 0.32, mesh, alive: true };
 });
 
 const marker = makeMarker(THREE, 0xf2d48a);
@@ -263,6 +150,10 @@ function closest(x, z) {
   return { x: px, z: pz, clamped: Math.hypot(px - x, pz - z) > 0.28 };
 }
 
+function distTo(item) {
+  return Math.hypot(hero.position.x - item.x, hero.position.z - item.z);
+}
+
 function feedback(text, tone) {
   state.lastFeedback = text;
   el.toast.textContent = text;
@@ -292,14 +183,28 @@ function finish(kind) {
     el.endTitle.textContent = "林光归途";
     el.endLead.textContent = "你采齐了甜红苹果，蘑菇伙伴们点起灯火。\n白衣公主穿过暮色，醒来时只记得甜香与笑声。";
     chime("good");
-  } else {
+  } else if (kind === "bad") {
     el.endIcon.textContent = "🌙";
     el.endBadge.textContent = "睡意结局";
     el.endTitle.textContent = "紫果入梦";
     el.endLead.textContent = "紫苹果的甜意太过浓烈。\n公主倚在树下沉沉睡去——\n直到林间传来轻轻的呼唤。";
     chime("bad");
+  } else {
+    const unexpected = kind;
+    throw new Error("Unknown ending: " + unexpected);
   }
   el.end.classList.remove("hidden");
+}
+
+function settleEnding() {
+  if (state.phase !== "play" || state.endLock) return;
+  const decision = resolveEnding({
+    phase: state.phase,
+    endLock: state.endLock,
+    win: state.score >= GOAL,
+    lose: state.lives <= 0,
+  });
+  if (decision) finish(decision);
 }
 
 function resetWorld() {
@@ -318,7 +223,7 @@ function resetWorld() {
   items.forEach((item) => {
     item.alive = true;
     item.mesh.visible = true;
-    item.mesh.position.set(item.x, 0.32, item.z);
+    item.mesh.position.set(item.x, 0, item.z);
   });
   marker.visible = false;
   hud();
@@ -330,7 +235,8 @@ function resetWorld() {
 }
 
 function collect(item) {
-  if (!item.alive || state.phase !== "play") return;
+  if (!item.alive || state.phase !== "play" || state.endLock) return;
+  if (distTo(item) > REACH) return;
   item.alive = false;
   item.mesh.visible = false;
   if (item.kind === "sweet") {
@@ -344,10 +250,16 @@ function collect(item) {
   }
   hero.userData.cloth.emissiveIntensity = 0.5;
   setTimeout(() => {
+    if (!hero.userData.cloth) return;
     hero.userData.cloth.emissive.setHex(0x000000);
     hero.userData.cloth.emissiveIntensity = 0;
   }, 240);
   hud();
+  if (state.target && state.target.id === item.id) {
+    state.target = null;
+    marker.visible = false;
+  }
+  settleEnding();
 }
 
 function seek(item) {
@@ -356,34 +268,40 @@ function seek(item) {
   marker.visible = true;
 }
 
+function nearestItem(x, z, radius) {
+  let best = null;
+  let bestD = radius;
+  for (const item of items) {
+    if (!item.alive) continue;
+    const d = Math.hypot(x - item.x, z - item.z);
+    if (!best || d < bestD - 1e-4 || (Math.abs(d - bestD) <= 1e-4 && item.id < best.id)) {
+      bestD = d;
+      best = item;
+    }
+  }
+  return best;
+}
+
 function onPointer(e) {
   if (state.phase !== "play") return;
   if (e.cancelable) e.preventDefault();
   const p = ndcFromPointer(e);
   ndc.set(p.x, p.y);
-  const screen = pickByScreen(camera, renderer.domElement, THREE, ndc, items, 84);
+  const screen = pickByScreen(camera, renderer.domElement, THREE, ndc, items, TAP_PX);
   if (screen) {
-    const item = items.find((it) => it.id === screen.id);
-    if (item && item.alive) {
-      if (Math.hypot(hero.position.x - item.x, hero.position.z - item.z) < 1.15) collect(item);
+    const item = items.find((it) => it.id === screen.id && it.alive);
+    if (item) {
+      if (distTo(item) <= REACH) collect(item);
       else seek(item);
       return;
     }
   }
   if (!groundHit(THREE, raycaster, camera, ndc, 0, hit)) return;
   if (farBehind(hero, hit.x, hit.z)) return;
-  let best = null;
-  let bestD = 1.55;
-  for (const item of items) {
-    if (!item.alive) continue;
-    const d = Math.hypot(hit.x - item.x, hit.z - item.z);
-    if (d < bestD) {
-      bestD = d;
-      best = item;
-    }
-  }
-  if (best) {
-    seek(best);
+  const foot = nearestItem(hit.x, hit.z, FOOT_SLOP);
+  if (foot) {
+    if (distTo(foot) <= REACH) collect(foot);
+    else seek(foot);
     return;
   }
   const spot = closest(hit.x, hit.z);
@@ -419,6 +337,21 @@ function keyVector() {
   return { x, z };
 }
 
+function approachCollect() {
+  if (state.target && state.target.id) {
+    const item = items.find((it) => it.id === state.target.id && it.alive);
+    if (item && distTo(item) <= REACH) return item;
+    return null;
+  }
+  return nearestItem(hero.position.x, hero.position.z, REACH);
+}
+
+function frameCamera(dt) {
+  const snap = state.snap || state.phase === "start";
+  aimCamera(camera, hero, dt, snap, CAM);
+  state.snap = false;
+}
+
 function tick() {
   requestAnimationFrame(tick);
   const dt = Math.min(clock.getDelta(), 0.05);
@@ -429,15 +362,16 @@ function tick() {
   }
   helpers.forEach((h, i) => {
     const u = h.userData;
-    h.position.x = u.baseX + Math.cos(t * 0.6 + u.phase) * 0.55;
-    h.position.z = u.baseZ + Math.sin(t * 0.5 + u.phase) * 0.55;
-    h.position.y = Math.abs(Math.sin(t * 3 + i)) * 0.05;
+    h.position.x = u.baseX + Math.cos(t * 0.6 + u.phase) * 0.28;
+    h.position.z = u.baseZ + Math.sin(t * 0.5 + u.phase) * 0.28;
+    h.position.y = Math.abs(Math.sin(t * 3 + i)) * 0.03;
   });
   items.forEach((item) => {
     if (!item.alive) return;
-    item.mesh.position.y = 0.32 + Math.sin(t * 2 + item.x) * 0.06;
-    item.mesh.rotation.y += dt * 0.6;
+    item.mesh.position.y = Math.sin(t * 2 + item.x) * 0.02;
+    item.mesh.rotation.y += dt * 0.45;
   });
+  glade.update(t);
 
   if (state.phase === "play") {
     state.grace = Math.max(0, state.grace - dt);
@@ -467,45 +401,24 @@ function tick() {
         }
       } else state.blockedT = 0;
       if (step.arrived) {
-        const id = state.target.id;
         state.target = null;
         marker.visible = false;
-        if (id) {
-          const item = items.find((it) => it.id === id && it.alive);
-          if (item && Math.hypot(hero.position.x - item.x, hero.position.z - item.z) < 1.2) collect(item);
-        }
       }
     } else state.moving = false;
 
-    let near = null;
-    let nearD = 0.72;
-    for (const item of items) {
-      if (!item.alive) continue;
-      const d = Math.hypot(hero.position.x - item.x, hero.position.z - item.z);
-      if (d < nearD) {
-        nearD = d;
-        near = item;
-      }
-    }
+    const near = approachCollect();
     if (near) collect(near);
-    const decision = resolveEnding({
-      phase: state.phase,
-      endLock: state.endLock,
-      win: state.score >= GOAL,
-      lose: state.lives <= 0,
-    });
-    if (decision) finish(decision);
+    else settleEnding();
+  } else if (state.phase === "start") {
+    state.moving = false;
+    hero.position.set(SPAWN.x, 0, SPAWN.z);
+    hero.rotation.y = Math.PI;
   } else {
     state.moving = false;
   }
 
   hero.userData.animate(state.moving, t);
-  aimCamera(camera, hero, dt, state.snap, { back: 8.2, height: 6.5, ahead: 4.6 });
-  state.snap = false;
-  if (state.phase === "start") {
-    hero.position.set(SPAWN.x, 0, SPAWN.z);
-    hero.rotation.y = Math.PI;
-  }
+  frameCamera(dt);
   publishQA(renderer.domElement, camera, THREE, {
     renderer,
     fields: {
@@ -527,7 +440,7 @@ function tick() {
         id: item.id,
         kind: item.kind,
         x: item.x,
-        y: 0.45,
+        y: item.y,
         z: item.z,
         alive: item.alive,
       })),
@@ -536,6 +449,8 @@ function tick() {
   });
   renderer.render(scene, camera);
 }
+
 hero.position.set(SPAWN.x, 0, SPAWN.z);
 hero.rotation.y = Math.PI;
+frameCamera(0);
 tick();
